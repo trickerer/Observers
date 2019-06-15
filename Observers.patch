@@ -1909,7 +1909,7 @@ index 0000000..4204985
 +    if (!mgr)
 +        mgr = new ObserversMgr(observer);
 +
-+    _observers[observer->GetGUID()] = observer;
++    _observers[observer->GetGUIDLow()] = observer;
 +    mgr->SetAcceptor(_owner);
 +
 +    //save old values
