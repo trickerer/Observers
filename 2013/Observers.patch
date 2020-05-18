@@ -1,4 +1,4 @@
-From 506c36a11c8c0e9e16e77d710f4a86298d333188 Mon Sep 17 00:00:00 2001
+From dd56ba62e3ea6ee7b043b51a8f38afd6f276e46f Mon Sep 17 00:00:00 2001
 From: trickerer <onlysuffering@gmail.com>
 Date: Sun, 17 May 2020 22:35:57 +0700
 Subject: [PATCH] Observers2013
@@ -19,14 +19,14 @@ Subject: [PATCH] Observers2013
  src/server/game/Maps/Map.cpp                     |  13 +
  src/server/game/Maps/MapInstanced.cpp            |  14 +
  src/server/game/Maps/MapManager.cpp              |   5 +
- src/server/game/Observers/ObserversCS.cpp        | 818 +++++++++++++++++++++
- src/server/game/Observers/ObserversMgr.cpp       | 858 +++++++++++++++++++++++
+ src/server/game/Observers/ObserversCS.cpp        | 818 ++++++++++++++++++++++
+ src/server/game/Observers/ObserversMgr.cpp       | 855 +++++++++++++++++++++++
  src/server/game/Observers/ObserversMgr.h         | 161 +++++
  src/server/game/Scripting/ScriptLoader.cpp       |   8 +
- src/server/game/Spells/Auras/SpellAuras.cpp      |   6 +
+ src/server/game/Spells/Auras/SpellAuras.cpp      |   7 +
  src/server/game/Spells/Spell.cpp                 |   5 +
  src/server/worldserver/worldserver.conf.dist     |  57 ++
- 22 files changed, 2245 insertions(+)
+ 22 files changed, 2243 insertions(+)
  create mode 100644 sql/custom/Observers/characters_observers.sql
  create mode 100644 src/server/game/Observers/ObserversCS.cpp
  create mode 100644 src/server/game/Observers/ObserversMgr.cpp
@@ -820,7 +820,7 @@ index 2e034f5..b81c683 100644
          return false;
 diff --git a/src/server/game/Observers/ObserversCS.cpp b/src/server/game/Observers/ObserversCS.cpp
 new file mode 100644
-index 0000000..809c665
+index 0000000..b0bc865
 --- /dev/null
 +++ b/src/server/game/Observers/ObserversCS.cpp
 @@ -0,0 +1,818 @@
@@ -1036,7 +1036,7 @@ index 0000000..809c665
 +            else if (!mgr->IsObserverAllowed(observer->GetGUIDLow()))
 +            {
 +                //first time
-+                mgr->QueryObserver(observer->GetGUIDLow());
++                mgr->QueueObserver(observer->GetGUIDLow());
 +                handler->PSendSysMessage("Cannot observe %s: not in access list. Pending...", target->GetName().c_str());
 +                //announce to acceptor (target)
 +                ChatHandler ch(target->GetSession());
@@ -1056,11 +1056,11 @@ index 0000000..809c665
 +                    case CLASS_DRUID:           plLink = "|cffff7d0a|"; break;
 +                    default:                    plLink = "|cffffffff|"; break;
 +                }
++
 +                plLink += "Hplayer:"+observer->GetName()+"|h["+observer->GetName()+"]|h|r";
 +                uint8 loc = handler->GetSessionDbcLocale();
-+                ch.PSendSysMessage("New pending observer: %s: %s %s %s (level %u)", plLink.c_str(),
-+                    observer->getGender() == GENDER_MALE ? ch.GetTrinityString(LANG_CHARACTER_GENDER_MALE) : ch.GetTrinityString(LANG_CHARACTER_GENDER_FEMALE),
-+                    GetRaceName(observer->getRace(), loc), GetClassName(observer->getClass(), loc), (uint32)observer->getLevel());
++
++                ch.PSendSysMessage("%s wishes to observe you, added to pending list...", plLink.c_str());
 +
 +                return false;
 +            }
@@ -1644,10 +1644,10 @@ index 0000000..809c665
 +}
 diff --git a/src/server/game/Observers/ObserversMgr.cpp b/src/server/game/Observers/ObserversMgr.cpp
 new file mode 100644
-index 0000000..4c07535
+index 0000000..088f3a2
 --- /dev/null
 +++ b/src/server/game/Observers/ObserversMgr.cpp
-@@ -0,0 +1,858 @@
+@@ -0,0 +1,855 @@
 +#include "ObserversMgr.h"
 +//#include "CharacterCache.h"
 +#include "Chat.h"
@@ -1672,11 +1672,6 @@ index 0000000..4c07535
 +#define MODELID_INVISIBLE 7804
 +//#define SPELL_TRANSPARENCY_100 37803 // Transparency 100% visible debuff //
 +#define ROOT_PERIOD 5000
-+
-+Unit* ObserverHealInfo::GetHealer() const
-+{
-+    return _healer;
-+}
 +
 +//config
 +bool _enableObservers;
@@ -1899,8 +1894,8 @@ index 0000000..4c07535
 +    //if (observer->GetObserversMgr() && !observer->GetObserversMgr()->GetObserversMap()->empty())
 +    //    return false;
 +
-+    if (observer->GetCharmerOrOwnerOrOwnGUID() != observer->GetGUID() ||
-+        observer->GetCharmGUID() || observer->GetMinionGUID() ||
++    if (observer->GetCharmerOrOwnerOrOwnGUID() != observer->GetGUID() || observer->GetCharmGUID() ||
++        (observer->GetMinionGUID() && observer->GetMinionGUID() != observer->GetPetGUID()) ||
 +        observer->GetUInt64Value(PLAYER_FARSIGHT) || observer->GetAI() ||
 +        observer->IsInFlight() || observer->GetSession()->isLogingOut() ||
 +        observer->IsBeingTeleported() || observer->IsMounted() ||
@@ -2115,6 +2110,8 @@ index 0000000..4c07535
 +    //scale
 +    //observer->SetObjectScale(0.f);
 +
++    observer->UnsummonPetTemporaryIfAny();
++
 +    //disable movement
 +    if (Aura* root = observer->AddAura(SPELL_ROOT_SELF, observer))
 +    {
@@ -2158,7 +2155,7 @@ index 0000000..4c07535
 +        _needUpdate = true;
 +}
 +
-+void ObserversMgr::QueryObserver(uint32 guidlow)
++void ObserversMgr::QueueObserver(uint32 guidlow)
 +{
 +    _accessList[guidlow] = OBSERVER_FLAG_PENDING;
 +    if (!_needUpdate)
@@ -2508,7 +2505,7 @@ index 0000000..4c07535
 +}
 diff --git a/src/server/game/Observers/ObserversMgr.h b/src/server/game/Observers/ObserversMgr.h
 new file mode 100644
-index 0000000..ee5dff0
+index 0000000..d6765ca
 --- /dev/null
 +++ b/src/server/game/Observers/ObserversMgr.h
 @@ -0,0 +1,161 @@
@@ -2566,7 +2563,7 @@ index 0000000..ee5dff0
 +        ObserverHealInfo(Unit* healer, Unit* target, uint32 heal, uint32 overheal, uint32 absorb, uint32 spellId) :
 +            _healer(healer), _target(target), _heal(heal), _effectiveHeal(heal - overheal), _absorb(absorb), _spellId(spellId) {}
 +
-+        Unit* GetHealer() const;
++        Unit* GetHealer() const { return _healer; }
 +        Unit* GetTarget() const { return _target; }
 +        uint32 GetHeal() const { return _heal; }
 +        uint32 GetEffectiveHeal() const { return _effectiveHeal; }
@@ -2623,7 +2620,7 @@ index 0000000..ee5dff0
 +        bool IsObserverInQuery(uint32 guidlow) const;
 +        void AllowObserver(uint32 guidlow);
 +        void ForbidObserver(uint32 guidlow);
-+        void QueryObserver(uint32 guidlow);
++        void QueueObserver(uint32 guidlow);
 +
 +        uint16 GetAllowedObserversCount() const;
 +        uint16 GetForbiddenObserversCount() const;
@@ -2699,18 +2696,23 @@ index 3b340f8..e91ec82 100644
  #endif
  }
 diff --git a/src/server/game/Spells/Auras/SpellAuras.cpp b/src/server/game/Spells/Auras/SpellAuras.cpp
-index efacdd1..cbf234a 100644
+index efacdd1..4273807 100644
 --- a/src/server/game/Spells/Auras/SpellAuras.cpp
 +++ b/src/server/game/Spells/Auras/SpellAuras.cpp
-@@ -2371,6 +2371,12 @@ void UnitAura::FillTargetMap(std::map<Unit*, uint8> & targets, Unit* caster)
+@@ -2367,10 +2367,17 @@ void UnitAura::Remove(AuraRemoveMode removeMode)
+ 
+ void UnitAura::FillTargetMap(std::map<Unit*, uint8> & targets, Unit* caster)
+ {
++    // Observers: Observers are isolated
++    Unit const* auraSource = caster ? caster : GetUnitOwner();
++    if (auraSource->GetTypeId() == TYPEID_PLAYER && auraSource->ToPlayer()->IsObserver())
++        return;
++    // End Observers
++
+     for (uint8 effIndex = 0; effIndex < MAX_SPELL_EFFECTS; ++effIndex)
      {
          if (!HasEffect(effIndex))
              continue;
-+
-+        // Observers: Observers are isolated
-+        if (caster->GetTypeId() == TYPEID_PLAYER && caster->ToPlayer()->IsObserver())
-+            continue;
-+        // End Observers
 +
          UnitList targetList;
          // non-area aura

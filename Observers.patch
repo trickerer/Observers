@@ -1,6 +1,6 @@
-From 14cdc1cea7606e79188493129898baec15fe8191 Mon Sep 17 00:00:00 2001
+From 670eeef7aac442c442192cd52bc8351b9248a7bf Mon Sep 17 00:00:00 2001
 From: trickerer <onlysuffering@gmail.com>
-Date: Sat, 2 May 2020 20:04:59 +0700
+Date: Mon, 18 May 2020 13:26:57 +0700
 Subject: [PATCH] Observers
 
 ---
@@ -19,18 +19,19 @@ Subject: [PATCH] Observers
  src/server/game/Maps/Map.cpp                       |  13 +
  src/server/game/Maps/MapInstanced.cpp              |  14 +
  src/server/game/Maps/MapManager.cpp                |   5 +
- src/server/game/Observers/ObserversMgr.cpp         | 855 +++++++++++++++++++++
- src/server/game/Observers/ObserversMgr.h           | 137 ++++
+ src/server/game/Observers/ObserversCS.cpp          | 810 +++++++++++++++++++
+ src/server/game/Observers/ObserversMgr.cpp         | 864 +++++++++++++++++++++
+ src/server/game/Observers/ObserversMgr.h           | 139 ++++
+ src/server/game/Scripting/ScriptMgr.cpp            |   6 +
  src/server/game/Spells/Auras/SpellAuras.cpp        |   5 +
  src/server/game/Spells/Spell.cpp                   |   5 +
- .../scripts/Custom/Observers/ObserversCS.cpp       | 810 +++++++++++++++++++
  src/server/scripts/Custom/custom_script_loader.cpp |   6 +
  src/server/worldserver/worldserver.conf.dist       |  57 ++
- 22 files changed, 2214 insertions(+)
+ 23 files changed, 2231 insertions(+)
  create mode 100644 sql/custom/Observers/characters_observers.sql
+ create mode 100644 src/server/game/Observers/ObserversCS.cpp
  create mode 100644 src/server/game/Observers/ObserversMgr.cpp
  create mode 100644 src/server/game/Observers/ObserversMgr.h
- create mode 100644 src/server/scripts/Custom/Observers/ObserversCS.cpp
 
 diff --git a/sql/custom/Observers/characters_observers.sql b/sql/custom/Observers/characters_observers.sql
 new file mode 100644
@@ -78,7 +79,7 @@ index 56c9fd4..69ccbf6 100644
          joinData.result = LFG_JOIN_USING_BG_SYSTEM;
      else if (player->HasAura(LFG_SPELL_DUNGEON_DESERTER))
 diff --git a/src/server/game/Entities/Object/Object.cpp b/src/server/game/Entities/Object/Object.cpp
-index 706d736..d9fee07 100644
+index c6597a2..fedfd68 100644
 --- a/src/server/game/Entities/Object/Object.cpp
 +++ b/src/server/game/Entities/Object/Object.cpp
 @@ -49,6 +49,10 @@
@@ -445,7 +446,7 @@ index 97835fb..f59ae96 100644
          InventoryResult CanStoreItem_InSpecificSlot(uint8 bag, uint8 slot, ItemPosCountVec& dest, ItemTemplate const* pProto, uint32& count, bool swap, Item* pSrcItem) const;
          InventoryResult CanStoreItem_InBag(uint8 bag, ItemPosCountVec& dest, ItemTemplate const* pProto, uint32& count, bool merge, bool non_specialized, Item* pSrcItem, uint8 skip_bag, uint8 skip_slot) const;
 diff --git a/src/server/game/Entities/Unit/Unit.cpp b/src/server/game/Entities/Unit/Unit.cpp
-index 6263e03..a043e57 100644
+index 31ca50e..9a97237 100644
 --- a/src/server/game/Entities/Unit/Unit.cpp
 +++ b/src/server/game/Entities/Unit/Unit.cpp
 @@ -76,6 +76,10 @@
@@ -459,7 +460,7 @@ index 6263e03..a043e57 100644
  float baseMoveSpeed[MAX_MOVE_TYPE] =
  {
      2.5f,                  // MOVE_WALK
-@@ -5122,6 +5126,12 @@ void Unit::RemoveAllGameObjects()
+@@ -5115,6 +5119,12 @@ void Unit::RemoveAllGameObjects()
  
  void Unit::SendSpellNonMeleeDamageLog(SpellNonMeleeDamage* log)
  {
@@ -472,7 +473,7 @@ index 6263e03..a043e57 100644
      WorldPacket data(SMSG_SPELLNONMELEEDAMAGELOG, (16+4+4+4+1+4+4+1+1+4+4+1)); // we guess size
      data << log->target->GetPackGUID();
      data << log->attacker->GetPackGUID();
-@@ -5190,6 +5200,21 @@ void Unit::SendSpellNonMeleeDamageLog(Unit* target, uint32 spellID, uint32 damag
+@@ -5183,6 +5193,21 @@ void Unit::SendSpellNonMeleeDamageLog(Unit* target, uint32 spellID, uint32 damag
  
  void Unit::SendPeriodicAuraLog(SpellPeriodicAuraLogInfo* pInfo)
  {
@@ -494,7 +495,7 @@ index 6263e03..a043e57 100644
      AuraEffect const* aura = pInfo->auraEff;
  
      WorldPacket data(SMSG_PERIODICAURALOG, 30);
-@@ -5246,6 +5271,12 @@ void Unit::SendSpellDamageResist(Unit* target, uint32 spellId)
+@@ -5239,6 +5264,12 @@ void Unit::SendSpellDamageResist(Unit* target, uint32 spellId)
  
  void Unit::SendSpellDamageImmune(Unit* target, uint32 spellId)
  {
@@ -507,7 +508,7 @@ index 6263e03..a043e57 100644
      WorldPacket data(SMSG_SPELLORDAMAGE_IMMUNE, 8+8+4+1);
      data << uint64(GetGUID());
      data << uint64(target->GetGUID());
-@@ -5256,6 +5287,12 @@ void Unit::SendSpellDamageImmune(Unit* target, uint32 spellId)
+@@ -5249,6 +5280,12 @@ void Unit::SendSpellDamageImmune(Unit* target, uint32 spellId)
  
  void Unit::SendAttackStateUpdate(CalcDamageInfo* damageInfo)
  {
@@ -520,7 +521,7 @@ index 6263e03..a043e57 100644
      uint32 count = 1;
      if (damageInfo->Damages[1].Damage || damageInfo->Damages[1].Absorb || damageInfo->Damages[1].Resist)
          ++count;
-@@ -6326,6 +6363,12 @@ void Unit::UnsummonAllTotems()
+@@ -6319,6 +6356,12 @@ void Unit::UnsummonAllTotems()
  
  void Unit::SendHealSpellLog(HealInfo& healInfo, bool critical /*= false*/)
  {
@@ -533,7 +534,7 @@ index 6263e03..a043e57 100644
      // we guess size
      WorldPacket data(SMSG_SPELLHEALLOG, 8 + 8 + 4 + 4 + 4 + 4 + 1 + 1);
      data << healInfo.GetTarget()->GetPackGUID();
-@@ -10267,6 +10310,11 @@ bool Unit::IsPolymorphed() const
+@@ -10260,6 +10303,11 @@ bool Unit::IsPolymorphed() const
  
  void Unit::RecalculateObjectScale()
  {
@@ -733,10 +734,10 @@ index 22f3bdb..f11bfe0 100644
      {
          info.Status = TRADE_STATUS_TARGET_LOGOUT;
 diff --git a/src/server/game/Maps/Map.cpp b/src/server/game/Maps/Map.cpp
-index 105898a..e4b02b7 100644
+index e75c09a..49d29d5 100644
 --- a/src/server/game/Maps/Map.cpp
 +++ b/src/server/game/Maps/Map.cpp
-@@ -3547,6 +3547,9 @@ uint32 Map::GetPlayersCountExceptGMs() const
+@@ -3548,6 +3548,9 @@ uint32 Map::GetPlayersCountExceptGMs() const
  {
      uint32 count = 0;
      for (MapRefManager::const_iterator itr = m_mapRefManager.begin(); itr != m_mapRefManager.end(); ++itr)
@@ -746,7 +747,7 @@ index 105898a..e4b02b7 100644
          if (!itr->GetSource()->IsGameMaster())
              ++count;
      return count;
-@@ -3714,6 +3717,11 @@ Map::EnterState InstanceMap::CannotEnter(Player* player)
+@@ -3715,6 +3718,11 @@ Map::EnterState InstanceMap::CannotEnter(Player* player)
      if (player->IsGameMaster())
          return Map::CannotEnter(player);
  
@@ -758,7 +759,7 @@ index 105898a..e4b02b7 100644
      // cannot enter if the instance is full (player cap), GMs don't count
      uint32 maxPlayers = GetMaxPlayers();
      if (GetPlayersCountExceptGMs() >= maxPlayers)
-@@ -4193,6 +4201,11 @@ Map::EnterState BattlegroundMap::CannotEnter(Player* player)
+@@ -4194,6 +4202,11 @@ Map::EnterState BattlegroundMap::CannotEnter(Player* player)
          return CANNOT_ENTER_ALREADY_IN_MAP;
      }
  
@@ -818,1047 +819,11 @@ index 81fe7e3..c5f0ab3 100644
      InstanceTemplate const* instance = sObjectMgr->GetInstanceTemplate(mapid);
      if (!instance)
          return Map::CANNOT_ENTER_UNINSTANCED_DUNGEON;
-diff --git a/src/server/game/Observers/ObserversMgr.cpp b/src/server/game/Observers/ObserversMgr.cpp
+diff --git a/src/server/game/Observers/ObserversCS.cpp b/src/server/game/Observers/ObserversCS.cpp
 new file mode 100644
-index 0000000..eae63b8
+index 0000000..f74bf59
 --- /dev/null
-+++ b/src/server/game/Observers/ObserversMgr.cpp
-@@ -0,0 +1,855 @@
-+#include "ObserversMgr.h"
-+#include "CharacterCache.h"
-+#include "Chat.h"
-+#include "Config.h"
-+#include "DatabaseWorkerPool.h"
-+#include "Language.h"
-+#include "Map.h"
-+#include "MapManager.h"
-+#include "Player.h"
-+#include "SpellAuraEffects.h"
-+//#include "WorldSession.h"
-+
-+/*
-+Observers system by Trickerer <https://github.com/trickerer/Observers>
-+VERSION: 1.0.19b
-+*/
-+
-+//6908 invisible transparancy 0%, sound only
-+//7804 invisible transparancy 0% tiny no weapon bunny icon, sound
-+//22452 invisible no weapon
-+#define SPELL_ROOT_SELF 31366 // RAF (hidden)
-+#define MODELID_INVISIBLE 7804
-+//#define SPELL_TRANSPARENCY_100 37803 // Transparency 100% visible debuff //
-+#define ROOT_PERIOD 5000
-+
-+//config
-+bool _enableObservers;
-+uint16 _maxObservers;
-+bool _enableObserversDungeons;
-+bool _enableObserversRaids;
-+bool _enableObserversBGs;
-+bool _enableObserversArenas;
-+bool _enableSneaks;
-+bool _sendPacketsCombat;
-+bool _sendPacketsItem;
-+
-+bool __obsfirstload = true;
-+
-+ObserversMgr::ObserversMgr(Player* const observed) : _owner(observed), _acceptor(nullptr)
-+{
-+    ErrorSent = false;
-+    _sneakPeak = false;
-+    _needUpdate = false;
-+    _autoAllow = false;
-+    _autoForbid = false;
-+    _rootTimer = 0;
-+    _loadAccessList();
-+
-+    LoadConfig();
-+
-+    _owner->SetObserversMgr(this);
-+}
-+ObserversMgr::~ObserversMgr()
-+{
-+    RemoveAllObservers();
-+    _unloadAccessList();
-+
-+    if (_acceptor)
-+        _acceptor->GetObserversMgr()->RemoveObserver(_owner->GetGUID().GetCounter(), OBSERVER_REMOVE_LOGOUT);
-+
-+    ASSERT(!_acceptor);
-+}
-+
-+void ObserversMgr::LoadConfig(bool force)
-+{
-+    if (__obsfirstload)
-+        __obsfirstload = false;
-+    else if (!force)
-+        return;
-+
-+    _enableObservers         = sConfigMgr->GetBoolDefault("Observers.Enable", true);
-+    _maxObservers            = sConfigMgr->GetIntDefault("Observers.MaxObservers", 0);
-+    _enableObserversDungeons = sConfigMgr->GetBoolDefault("Observers.Dungeon", true);
-+    _enableObserversRaids    = sConfigMgr->GetBoolDefault("Observers.Raid", true);
-+    _enableObserversBGs      = sConfigMgr->GetBoolDefault("Observers.BG", true);
-+    _enableObserversArenas   = sConfigMgr->GetBoolDefault("Observers.Arena", true);
-+    _enableSneaks            = sConfigMgr->GetBoolDefault("Observers.Sneaks", true);
-+    _sendPacketsCombat       = sConfigMgr->GetBoolDefault("Observers.SendPackets.Combat", false);
-+    _sendPacketsItem         = sConfigMgr->GetBoolDefault("Observers.SendPackets.Item", true);
-+}
-+
-+bool ObserversMgr::IsObserverModEnabled()
-+{
-+    return _enableObservers;
-+}
-+
-+bool ObserversMgr::SneaksEnabled()
-+{
-+    return _enableSneaks;
-+}
-+
-+//bool ObserversMgr::SendCombatPackets()
-+//{
-+//    return _sendPacketsCombat;
-+//}
-+
-+bool ObserversMgr::SendItemPackets()
-+{
-+    return _sendPacketsItem;
-+}
-+
-+uint16 ObserversMgr::GetObserversCountWithoutSneaks() const
-+{
-+    uint16 count = 0;
-+    for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
-+        if (!IsSneak(itr->second))
-+            ++count;
-+
-+    return count;
-+}
-+
-+uint16 ObserversMgr::GetMaxObservers()
-+{
-+    return _maxObservers ? _maxObservers : std::numeric_limits<uint16>::max();
-+}
-+//Only called from Player::Update(uint32)
-+void ObserversMgr::UpdateMap(uint32 diff)
-+{
-+    _rootTimer += diff;
-+
-+    if (_needUpdate)
-+    {
-+        _needUpdate = false;
-+        _storeAccessList();
-+    }
-+
-+    if (_autoAllow || _autoForbid)
-+    {
-+        for (ObserverAccessList::iterator itr = _accessList.begin(); itr != _accessList.end(); ++itr)
-+        {
-+            if (itr->second == OBSERVER_FLAG_PENDING)
-+            {
-+                if (_autoAllow)
-+                {
-+                    AllowObserver(itr->first);
-+                    //itr->second = OBSERVER_FLAG_ALLOWED;
-+                    if (Player* observer = ObjectAccessor::FindPlayerByLowGUID(itr->first))
-+                    {
-+                        ChatHandler ch(observer->GetSession());
-+                        ch.PSendSysMessage("You are now allowed to observe %s", _owner->GetName().c_str());
-+                        //if (CanAddObserver(observer))
-+                        //    AddObserver(observer);
-+                    }
-+                }
-+                else if (_autoForbid)
-+                {
-+                    ForbidObserver(itr->first);
-+                    //itr->second = OBSERVER_FLAG_FORBIDDEN;
-+                }
-+            }
-+        }
-+    }
-+
-+    if (!_owner->IsInWorld() || !MapManager::IsValidMapCoord(*_owner) || _owner->IsBeingTeleported())
-+        return;
-+
-+    if (_observers.empty())
-+        return;
-+
-+    Player* observer;
-+    if (_rootTimer >= ROOT_PERIOD)
-+    {
-+        _rootTimer = 0;
-+        for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
-+        {
-+            observer = itr->second;
-+            if (Aura* root = observer->GetAura(SPELL_ROOT_SELF))
-+                root->RefreshDuration();
-+        }
-+    }
-+
-+    for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
-+    {
-+        observer = itr->second;
-+
-+        if (!observer->IsInWorld() || observer->IsBeingTeleported())
-+            continue;
-+
-+        if (observer->GetMap() != _owner->GetMap())
-+        {
-+            if (observer->GetGuidValue(PLAYER_FARSIGHT))
-+            {
-+                ASSERT(observer->GetGuidValue(PLAYER_FARSIGHT) == _owner->GetGUID());
-+                observer->SetViewpoint(_owner, false);
-+            }
-+
-+            //Map::CanEnter and MapMgr::CanPlayerEnter are edited to not block observers
-+            if (RestrictObservers(_owner) && !IsSneak(observer))
-+            {
-+                if (observer->GetObserversMgr()->ErrorSent == false)
-+                {
-+                    observer->GetObserversMgr()->ErrorSent = true;
-+                    ChatHandler ch(observer->GetSession());
-+                    ch.PSendSysMessage("%s is in %s which you cannot enter.",
-+                        _owner->GetName().c_str(), _owner->GetMap()->GetMapName());
-+                }
-+
-+                continue;
-+            }
-+
-+            if (observer->GetObserversMgr()->ErrorSent == true)
-+                observer->GetObserversMgr()->ErrorSent = false;
-+
-+            TeleportObserver(observer);
-+
-+            continue;
-+        }
-+
-+        if (observer->GetGuidValue(PLAYER_FARSIGHT) != _owner->GetGUID())
-+        {
-+            ASSERT(observer->GetGuidValue(PLAYER_FARSIGHT) == 0);
-+            observer->SetViewpoint(_owner, true);
-+        }
-+
-+        //1) Keep close (needed for combat text to not glitch)
-+        if (observer->GetDistance2d(_owner) > 15.0f)
-+            observer->TeleportTo(*_owner, TELE_TO_NOT_LEAVE_COMBAT|TELE_TO_GM_MODE);
-+    }
-+}
-+
-+bool ObserversMgr::RestrictObservers(Player const* owner)
-+{
-+    Map const* currMap = owner->FindMap();
-+
-+    if (!currMap)
-+        return true;
-+
-+    if ((!_enableObserversDungeons && currMap->IsNonRaidDungeon()) ||
-+        (!_enableObserversRaids && currMap->IsRaid()) ||
-+        (!_enableObserversBGs && currMap->IsBattleground()) ||
-+        (!_enableObserversArenas && currMap->IsBattleArena()))
-+        return true;
-+
-+    return false;
-+}
-+//invoker conditions
-+bool ObserversMgr::CanAddObserver(Player* observer)
-+{
-+    if (!IsObserverModEnabled())
-+        return false; //silent
-+
-+    // player himself has observers
-+    //TODO: fix this properly
-+    //if (observer->GetObserversMgr() && !observer->GetObserversMgr()->GetObserversMap()->empty())
-+    //    return false;
-+
-+    if (observer->GetCharmerOrOwnerOrOwnGUID() != observer->GetGUID() ||
-+        observer->GetCharmedGUID() || observer->GetMinionGUID() ||
-+        observer->GetGuidValue(PLAYER_FARSIGHT) || observer->GetAI() ||
-+        observer->IsInFlight() || observer->GetSession()->isLogingOut() ||
-+        observer->IsBeingTeleported() || observer->IsMounted() ||
-+        !observer->CanFreeMove() || observer->duel || observer->GetTransformSpell() ||
-+        (observer->IsPvP() && !(observer->GetByteValue(UNIT_FIELD_BYTES_2, 1) & UNIT_BYTE2_FLAG_SANCTUARY)) ||
-+        observer->HasAuraType(SPELL_AURA_PERIODIC_DAMAGE) ||
-+        observer->IsInCombat() || !observer->IsAlive() ||
-+        observer->IsUnderWater() || observer->IsMirrorTimerActive(FATIGUE_TIMER) ||
-+        observer->IsMirrorTimerActive(BREATH_TIMER) || observer->IsMirrorTimerActive(FIRE_TIMER))
-+        return false;
-+
-+    if (observer->GetCurrentSpell(CURRENT_MELEE_SPELL) ||
-+        observer->GetCurrentSpell(CURRENT_GENERIC_SPELL) ||
-+        observer->GetCurrentSpell(CURRENT_CHANNELED_SPELL) ||
-+        observer->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL))
-+        return false;
-+
-+    if (observer->isMoving())
-+        return false;
-+
-+    if (observer->GetGroup() || observer->GetGroupInvite())
-+        return false;
-+
-+    if (observer->isUsingLfg())
-+        return false;
-+
-+    if (observer->InBattlegroundQueue())
-+        return false;
-+
-+    Map const* map = observer->FindMap();
-+    if (!map || !map->GetEntry()->IsWorldMap())
-+        return false;
-+
-+    return true;
-+}
-+
-+bool ObserversMgr::IsSneak(Player const* observer)
-+{
-+    return _enableSneaks && observer->IsGameMaster();
-+}
-+
-+Player* ObserversMgr::GetObserver(uint32 guidlow) const
-+{
-+    ObserverMap::const_iterator itr = _observers.find(guidlow);
-+    return itr != _observers.end() ? itr->second : nullptr;
-+}
-+
-+void ObserversMgr::TeleportObserver(Player* observer)
-+{
-+    if (!MapManager::IsValidMapCoord(*_owner))
-+        return;
-+
-+    if (_owner->GetMap()->IsDungeon())
-+    {
-+        if (_owner->GetMap()->IsRaid())
-+            observer->SetDungeonDifficulty(_owner->GetDungeonDifficulty());
-+    }
-+    observer->TeleportTo(*_owner, TELE_TO_GM_MODE);
-+    observer->SetPhaseMask(_owner->GetPhaseMask(), true);
-+}
-+
-+void ObserversMgr::OnTeleportFar()
-+{
-+    Player* observer;
-+    ObserversMgr* mgr;
-+    for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
-+    {
-+        observer = itr->second;
-+        mgr = observer->GetObserversMgr();
-+
-+        if (!observer->IsInWorld() || observer->IsBeingTeleported())
-+            continue;
-+
-+        if (observer->GetGuidValue(PLAYER_FARSIGHT))
-+        {
-+            ASSERT(observer->GetGuidValue(PLAYER_FARSIGHT) == _owner->GetGUID());
-+            observer->SetViewpoint(_owner, false);
-+        }
-+
-+        uint32 mapId = mgr->GetOrigMapId();
-+        float x,y,z,o;
-+        mgr->GetOrigPos(x, y, z, o);
-+        observer->TeleportTo(mapId, x, y, z, o);
-+    }
-+}
-+
-+void ObserversMgr::RemoveAllObservers()
-+{
-+    while (!_observers.empty())
-+        RemoveObserver(_observers.begin()->first, OBSERVER_REMOVE_LOGOUT);
-+}
-+
-+void ObserversMgr::RemoveObserver(uint32 guidlow, uint8 reason)
-+{
-+    ObserverMap::const_iterator itr = _observers.find(guidlow);
-+    if (itr == _observers.end())
-+    {
-+        std::string obName;
-+        sCharacterCache->GetCharacterNameByGuid(ObjectGuid(HighGuid::Player, guidlow), obName);
-+        TC_LOG_ERROR("entities.unit", "%s (%u) tried to remove observer %s (%u) which doesn't belong to his observerMgr!!",
-+            _owner->GetName().c_str(), _owner->GetGUID().GetCounter(), obName.c_str(), guidlow);
-+        //ASSERT(false);
-+        return;
-+    }
-+
-+    Player* observer = itr->second;
-+    ObserversMgr* mgr = observer->GetObserversMgr();
-+    bool sneak = IsSneak(observer);
-+
-+    // same/different map
-+    if (observer->GetGuidValue(PLAYER_FARSIGHT))
-+    {
-+        ASSERT(observer->GetGuidValue(PLAYER_FARSIGHT) == _owner->GetGUID());
-+        observer->SetViewpoint(_owner, false);
-+    }
-+
-+    uint32 mapId = mgr->GetOrigMapId();
-+    float x,y,z,o;
-+    mgr->GetOrigPos(x, y, z, o);
-+    observer->TeleportTo(mapId, x, y, z, o);
-+
-+    _observers.erase(itr);
-+
-+    ASSERT(mgr->GetAcceptor() == _owner);
-+    mgr->SetAcceptor(nullptr);
-+
-+    observer->RemoveAurasDueToSpell(SPELL_ROOT_SELF);
-+    //observer->RecalculateObjectScale();
-+    observer->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
-+    observer->SetUInt32Value(UNIT_FIELD_DISPLAYID, mgr->OrigModelId);
-+    observer->SetVisible(true);
-+
-+    if (!observer->GetSession()->isLogingOut())
-+    {
-+        ChatHandler ch(observer->GetSession());
-+        std::string reasonStr = "You are no longer observing %s";
-+        if (reason == OBSERVER_REMOVE_KICKED)
-+            reasonStr += " (kicked)";
-+        else if (reason == OBSERVER_REMOVE_LOGOUT)
-+            reasonStr += " (logged out)";
-+        ch.PSendSysMessage(reasonStr.c_str(), _owner->GetName().c_str());
-+    }
-+    if (!_owner->GetSession()->isLogingOut() && !sneak)
-+    {
-+        ChatHandler ch(_owner->GetSession());
-+        std::string reasonStr = "%s is no longer observing you";
-+        if (reason == OBSERVER_REMOVE_KICKED)
-+            reasonStr += " (kicked)";
-+        else if (reason == OBSERVER_REMOVE_LOGOUT)
-+            reasonStr += " (logged out)";
-+        ch.PSendSysMessage(reasonStr.c_str(), observer->GetName().c_str());
-+    }
-+}
-+
-+ObserverAddResult ObserversMgr::AddObserver(Player* observer)
-+{
-+    if (!_enableObservers)
-+    {
-+        ChatHandler ch(observer->GetSession());
-+        ch.SendSysMessage("Observers system is currently disabled.");
-+        return OBSERVER_ADD_DISABLED;
-+    }
-+
-+    if (observer->IsObserver())
-+    {
-+        ChatHandler ch(observer->GetSession());
-+        ch.PSendSysMessage("Cannot start observing %s while observing another player", _owner->GetName().c_str());
-+        return OBSERVER_ADD_WATCHING_ANOTHER;
-+    }
-+    //we are observing another player - chain through
-+    if (_acceptor)
-+    {
-+        ChatHandler ch(observer->GetSession());
-+        ch.PSendSysMessage("Cannot start observing: %s is observing %s.", _owner->GetName().c_str(), _acceptor->GetName().c_str());
-+        return OBSERVER_ADD_WATCHING_ANOTHER;
-+    }
-+
-+    if (GetObserver(observer->GetGUID().GetCounter()))
-+        return OBSERVER_ADD_ALREADY_HAVE; //Silent error, intended
-+    if (_owner->IsBeingTeleported())
-+    {
-+        ChatHandler ch(observer->GetSession());
-+        ch.PSendSysMessage("You cannot watch %s while he is about to teleport. Try again.", _owner->GetName().c_str());
-+        return OBSERVER_ADD_BUSY;
-+    }
-+    if (GetObserversCountWithoutSneaks() >= GetMaxObservers())
-+    {
-+        ChatHandler ch(observer->GetSession());
-+        ch.PSendSysMessage("%s exceeded max observers (%u).", _owner->GetName().c_str(), GetMaxObservers());
-+        return OBSERVER_ADD_MAX_EXCEED;
-+    }
-+
-+    ObserversMgr* mgr = observer->GetObserversMgr();
-+    if (!mgr)
-+        mgr = new ObserversMgr(observer);
-+
-+    _observers[observer->GetGUID().GetCounter()] = observer;
-+    mgr->SetAcceptor(_owner);
-+
-+    //save old values
-+    mgr->OrigMapId  = observer->GetMapId();
-+    mgr->OrigZoneId = observer->GetZoneId();
-+    observer->GetPosition(mgr->OrigX, mgr->OrigY, mgr->OrigZ, mgr->OrigO);
-+
-+    mgr->OrigModelId = observer->GetUInt32Value(UNIT_FIELD_DISPLAYID);
-+
-+    //invisible unattackable state
-+    observer->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
-+    observer->SetVisible(false);
-+    observer->SetUInt32Value(UNIT_FIELD_DISPLAYID, MODELID_INVISIBLE);
-+
-+    //scale
-+    //observer->SetObjectScale(0.f);
-+
-+    //disable movement
-+    if (Aura* root = observer->AddAura(SPELL_ROOT_SELF, observer))
-+    {
-+        root->SetDuration(20000);
-+        root->SetMaxDuration(20000);
-+    }
-+
-+    return OBSERVER_ADD_SUCCESS;
-+}
-+
-+//UTIL
-+bool ObserversMgr::IsObserverAllowed(uint32 guidlow) const
-+{
-+    ObserverAccessList::const_iterator itr = _accessList.find(guidlow);
-+    return itr != _accessList.end() ? itr->second == OBSERVER_FLAG_ALLOWED : false;
-+}
-+
-+bool ObserversMgr::IsObserverForbidden(uint32 guidlow) const
-+{
-+    ObserverAccessList::const_iterator itr = _accessList.find(guidlow);
-+    return itr != _accessList.end() ? itr->second == OBSERVER_FLAG_FORBIDDEN : false;
-+}
-+
-+bool ObserversMgr::IsObserverInQuery(uint32 guidlow) const
-+{
-+    ObserverAccessList::const_iterator itr = _accessList.find(guidlow);
-+    return itr != _accessList.end() ? itr->second == OBSERVER_FLAG_PENDING : false;
-+}
-+
-+void ObserversMgr::AllowObserver(uint32 guidlow)
-+{
-+    _accessList[guidlow] = OBSERVER_FLAG_ALLOWED;
-+    if (!_needUpdate)
-+        _needUpdate = true;
-+}
-+
-+void ObserversMgr::ForbidObserver(uint32 guidlow)
-+{
-+    _accessList[guidlow] = OBSERVER_FLAG_FORBIDDEN;
-+    if (!_needUpdate)
-+        _needUpdate = true;
-+}
-+
-+void ObserversMgr::QueryObserver(uint32 guidlow)
-+{
-+    _accessList[guidlow] = OBSERVER_FLAG_PENDING;
-+    if (!_needUpdate)
-+        _needUpdate = true;
-+}
-+
-+uint16 ObserversMgr::GetAllowedObserversCount() const
-+{
-+    uint16 count = 0;
-+    for (ObserverAccessList::const_iterator itr = _accessList.begin(); itr != _accessList.end(); ++itr)
-+        if (itr->second == OBSERVER_FLAG_ALLOWED)
-+            ++count;
-+
-+    return count;
-+}
-+
-+uint16 ObserversMgr::GetForbiddenObserversCount() const
-+{
-+    uint16 count = 0;
-+    for (ObserverAccessList::const_iterator itr = _accessList.begin(); itr != _accessList.end(); ++itr)
-+        if (itr->second == OBSERVER_FLAG_FORBIDDEN)
-+            ++count;
-+
-+    return count;
-+}
-+
-+uint16 ObserversMgr::GetPendingObserversCount() const
-+{
-+    uint16 count = 0;
-+    for (ObserverAccessList::const_iterator itr = _accessList.begin(); itr != _accessList.end(); ++itr)
-+        if (itr->second == OBSERVER_FLAG_PENDING)
-+            ++count;
-+
-+    return count;
-+}
-+
-+void ObserversMgr::SetAutoAllow(bool set)
-+{
-+    _autoAllow = set;
-+    if (set && _autoForbid) // autoallow and autoforbid conflict
-+        _autoForbid = false;
-+}
-+
-+void ObserversMgr::SetAutoForbid(bool set)
-+{
-+    _autoForbid = set;
-+    if (set && _autoAllow) // autoallow and autoforbid conflict
-+        _autoAllow = false;
-+}
-+
-+void ObserversMgr::_unloadAccessList()
-+{
-+    _needUpdate = false;
-+    while (!_accessList.empty())
-+        _accessList.erase(_accessList.begin());
-+}
-+//ACCESS
-+void ObserversMgr::_loadAccessList()
-+{
-+    QueryResult result = CharacterDatabase.PQuery("SELECT observer, flag FROM characters_observers WHERE guid = %u",
-+        _owner->GetGUID().GetCounter());
-+
-+    if (result)
-+    {
-+        Field* fields = result->Fetch();
-+        do
-+        {
-+            _accessList[fields[0].GetUInt32()] = fields[1].GetUInt8();
-+        }
-+        while (result->NextRow());
-+    }
-+}
-+
-+void ObserversMgr::_storeAccessList()
-+{
-+    for (ObserverAccessList::const_iterator itr = _accessList.begin(); itr != _accessList.end(); ++itr)
-+    {
-+        //ASYNC
-+        CharacterDatabase.PExecute("REPLACE INTO characters_observers (guid, observer, flag) VALUES (%u, %u, %u)",
-+            _owner->GetGUID().GetCounter(), itr->first, itr->second);
-+    }
-+}
-+//PACKETS
-+void ObserversMgr::SendToObservers(WorldPacket* packet)
-+{
-+    //copy packet
-+    WorldPacket data = WorldPacket(*packet);
-+    for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
-+        if (itr->second->IsInWorld())
-+            itr->second->GetSession()->SendPacket(&data);
-+}
-+
-+void ObserversMgr::SendToObservers(uint16 opcode, void* uniData1, void* uniData2, void* uniData3)
-+{
-+    if (_observers.empty())
-+        return;
-+
-+    // Notes:
-+    // SendSpellDamageResist (SMSG_PROCRESIST) - Unused
-+
-+    switch (opcode)
-+    {
-+        case SMSG_SPELLORDAMAGE_IMMUNE:
-+        {
-+            if (_sendPacketsCombat == false)
-+                break;
-+
-+            Unit* target = (Unit*)uniData1;
-+            uint32 spellId = *((uint32*)uniData2);
-+
-+            for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
-+            {
-+                if (!itr->second->IsInWorld())
-+                    continue;
-+
-+                // Copied from Unit::SendSpellDamageImmune
-+                WorldPacket data(SMSG_SPELLORDAMAGE_IMMUNE, (8+8+4+1));
-+                data << uint64(itr->second->GetGUID());
-+                data << uint64(target->GetGUID());
-+                data << uint32(spellId);
-+                data << uint8(0); // bool - log format: 0-default, 1-debug
-+
-+                itr->second->GetSession()->SendPacket(&data);
-+            }
-+
-+            break;
-+        }
-+        case SMSG_SPELLLOGMISS:
-+        {
-+            if (_sendPacketsCombat == false)
-+                break;
-+
-+            Unit* target = (Unit*)uniData1;
-+            uint32 spellId = *((uint32*)uniData2);
-+            SpellMissInfo missInfo = *((SpellMissInfo*)uniData3);
-+
-+            for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
-+            {
-+                if (!itr->second->IsInWorld())
-+                    continue;
-+
-+                // Copied from Unit::SendSpellMiss
-+                WorldPacket data(SMSG_SPELLLOGMISS, (4+8+1+4+8+1));
-+                data << uint32(spellId);
-+                data << uint64(itr->second->GetGUID());
-+                data << uint8(0);                                       // can be 0 or 1
-+                data << uint32(1);                                      // target count
-+                data << uint64(target->GetGUID());                      // target GUID
-+                data << uint8(missInfo);
-+
-+                itr->second->GetSession()->SendPacket(&data);
-+            }
-+
-+            break;
-+        }
-+        case SMSG_PERIODICAURALOG:
-+        {
-+            if (_sendPacketsCombat == false)
-+                break;
-+
-+            SpellPeriodicAuraLogInfo* pInfo = (SpellPeriodicAuraLogInfo*)uniData1;
-+            Unit* target = (Unit*)uniData2;
-+            AuraEffect const* aura = pInfo->auraEff;
-+
-+            for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
-+            {
-+                if (!itr->second->IsInWorld())
-+                    continue;
-+
-+                // Moved from Unit::SendPeriodicAuraLog
-+                WorldPacket data(SMSG_PERIODICAURALOG, 30);
-+                data << target->GetPackGUID();
-+                data << itr->second->GetGUID().WriteAsPacked();
-+                data << uint32(aura->GetId());                          // spellId
-+                data << uint32(1);                                      // count
-+                data << uint32(aura->GetAuraType());                    // auraId
-+                switch (aura->GetAuraType())
-+                {
-+                    case SPELL_AURA_PERIODIC_DAMAGE:
-+                    case SPELL_AURA_PERIODIC_DAMAGE_PERCENT:
-+                        data << uint32(pInfo->damage);                  // damage
-+                        data << uint32(pInfo->overDamage);              // overkill?
-+                        data << uint32(aura->GetSpellInfo()->GetSchoolMask());
-+                        data << uint32(pInfo->absorb);                  // absorb
-+                        data << uint32(pInfo->resist);                  // resist
-+                        data << uint8(pInfo->critical);                 // new 3.1.2 critical tick
-+                        break;
-+                    default:
-+                        return;
-+                }
-+
-+                itr->second->GetSession()->SendPacket(&data);
-+            }
-+
-+            break;
-+        }
-+        case SMSG_SPELLNONMELEEDAMAGELOG:
-+        {
-+            if (_sendPacketsCombat == false)
-+                break;
-+
-+            //copy CalcDamageInfo
-+            SpellNonMeleeDamage log = *(SpellNonMeleeDamage*)uniData1;
-+            //TC_LOG_ERROR("entities.unit", "ObsMgr::SMSG_SPELLNONMELEEDAMAGELOG: attacker: %u, damage = %u (%u)",
-+            //    log->attacker->GetGUID().GetCounter(), log->damage, log->cleanDamage);
-+            for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
-+            {
-+                if (!itr->second->IsInWorld())
-+                    continue;
-+
-+                log.attacker = itr->second; // !!Send with observer as attacker!!
-+
-+                // Copied from Unit::SendSpellNonMeleeDamageLog
-+                WorldPacket data(SMSG_SPELLNONMELEEDAMAGELOG, (16+4+4+4+1+4+4+1+1+4+4+1)); // we guess size
-+                data << log.target->GetPackGUID();
-+                data << log.attacker->GetPackGUID();
-+                data << uint32(log.SpellID);
-+                data << uint32(log.damage);                            // damage amount
-+                int32 overkill = log.damage - log.target->GetHealth();
-+                data << uint32(overkill > 0 ? overkill : 0);            // overkill
-+                data << uint8 (log.schoolMask);                        // damage school
-+                data << uint32(log.absorb);                            // AbsorbedDamage
-+                data << uint32(log.resist);                            // resist
-+                data << uint8 (log.periodicLog);                       // bool: show and log spell name
-+                data << uint8 (log.unused);                            // unused
-+                data << uint32(log.blocked);                           // blocked
-+                data << uint32(log.HitInfo);
-+                data << uint8 (log.HitInfo & (SPELL_HIT_TYPE_CRIT_DEBUG | SPELL_HIT_TYPE_HIT_DEBUG | SPELL_HIT_TYPE_ATTACK_TABLE_DEBUG));
-+
-+                itr->second->GetSession()->SendPacket(&data);
-+            }
-+
-+            break;
-+        }
-+        case SMSG_SPELLHEALLOG:
-+        {
-+            if (_sendPacketsCombat == false)
-+                break;
-+
-+            //copy HealInfo
-+            HealInfo healInfo = *(HealInfo*)uniData1;
-+            bool critical = *(bool*)uniData2;
-+            //TC_LOG_ERROR("entities.unit", "ObsMgr::SMSG_SPELLHEALLOG);
-+            for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
-+            {
-+                if (!itr->second->IsInWorld())
-+                    continue;
-+
-+                WorldPacket data(SMSG_SPELLHEALLOG, 8+8+4+4+4+4+1+1);
-+                data << healInfo.GetTarget()->GetPackGUID();
-+                data << itr->second->GetPackGUID(); //observer as source
-+                data << uint32(healInfo.GetSpellInfo()->Id);
-+                data << uint32(healInfo.GetHeal());
-+                data << uint32(healInfo.GetHeal() - healInfo.GetEffectiveHeal());
-+                data << uint32(healInfo.GetAbsorb());
-+                data << uint8(critical ? 1 : 0);
-+                data << uint8(0); //unused
-+
-+                itr->second->GetSession()->SendPacket(&data);
-+            }
-+
-+            break;
-+        }
-+        case SMSG_ATTACKERSTATEUPDATE:
-+        {
-+            if (_sendPacketsCombat == false)
-+                break;
-+
-+            //copy CalcDamageInfo
-+            CalcDamageInfo damageInfo = *((CalcDamageInfo*)uniData1);
-+            //TC_LOG_ERROR("entities.unit", "ObsMgr::SMSG_ATTACKERSTATEUPDATE: attacker: %u, damage = %u (%u)",
-+            //    damageInfo->attacker->GetGUID().GetCounter(), damageInfo->damage, damageInfo->cleanDamage);
-+
-+            uint8 count = 1;
-+            if (damageInfo.Damages[1].Damage || damageInfo.Damages[1].Absorb || damageInfo.Damages[1].Resist)
-+                ++count;
-+            for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
-+            {
-+                if (!itr->second->IsInWorld())
-+                    continue;
-+
-+                damageInfo.Attacker = itr->second; // !!Send with observer as attacker!!
-+
-+                // Copied from Unit::SendAttackStateUpdate
-+                WorldPacket data(SMSG_ATTACKERSTATEUPDATE, (4+5+5+4+4+1+(4+4+4)*2+4*2+4*2+1+4+4+4+4+4*12));
-+
-+                data << uint32(damageInfo.HitInfo);
-+                data << damageInfo.Attacker->GetPackGUID();
-+                data << damageInfo.Target->GetPackGUID();
-+                data << uint32(damageInfo.Damages[0].Damage + damageInfo.Damages[1].Damage); // Full damage
-+                int32 overkill = damageInfo.Damages[0].Damage + damageInfo.Damages[1].Damage - damageInfo.Target->GetHealth();
-+                data << uint32(overkill < 0 ? 0 : overkill);            // Overkill
-+                data << uint8(count);                                   // Sub damage count
-+
-+                for (uint8 i = 0; i != count; ++i)
-+                {
-+                    data << uint32(damageInfo.Damages[i].DamageSchoolMask);       // School of sub damage
-+                    data << float(damageInfo.Damages[i].Damage);                  // sub damage
-+                    data << uint32(damageInfo.Damages[i].Damage);                 // Sub Damage
-+                }
-+
-+                if (damageInfo.HitInfo & (HITINFO_FULL_ABSORB | HITINFO_PARTIAL_ABSORB))
-+                {
-+                    for (uint8 i = 0; i != count; ++i)
-+                        data << uint32(damageInfo.Damages[i].Absorb);             // Absorb
-+                }
-+
-+                if (damageInfo.HitInfo & (HITINFO_FULL_RESIST | HITINFO_PARTIAL_RESIST))
-+                {
-+                    for (uint8 i = 0; i != count; ++i)
-+                        data << uint32(damageInfo.Damages[i].Resist);             // Resist
-+                }
-+
-+                data << uint8(damageInfo.TargetState);
-+                data << uint32(0);  // Unknown attackerstate
-+                data << uint32(0);  // Melee spellid
-+
-+                if (damageInfo.HitInfo & HITINFO_BLOCK)
-+                    data << uint32(damageInfo.Blocked);
-+
-+                if (damageInfo.HitInfo & HITINFO_RAGE_GAIN)
-+                    data << uint32(0);
-+
-+                //! Probably used for debugging purposes, as it is not known to appear on retail servers
-+                if (damageInfo.HitInfo & HITINFO_UNK1)
-+                {
-+                    data << uint32(0);
-+                    data << float(0);
-+                    data << float(0);
-+                    data << float(0);
-+                    data << float(0);
-+                    data << float(0);
-+                    data << float(0);
-+                    data << float(0);
-+                    data << float(0);
-+                    data << float(0);       // Found in a loop with 1 iteration
-+                    data << float(0);       // ditto ^
-+                    data << uint32(0);
-+                }
-+
-+                itr->second->GetSession()->SendPacket(&data);
-+            }
-+
-+            break;
-+        }
-+        default:
-+            break;
-+    }
-+}
-diff --git a/src/server/game/Observers/ObserversMgr.h b/src/server/game/Observers/ObserversMgr.h
-new file mode 100644
-index 0000000..b410515
---- /dev/null
-+++ b/src/server/game/Observers/ObserversMgr.h
-@@ -0,0 +1,137 @@
-+#ifndef _OBSERVERSMGR_H
-+#define _OBSERVERSMGR_H
-+
-+#include "Common.h"
-+
-+/*
-+Observers system by Trickerer <onlysuffering@gmail.com>
-+*/
-+
-+class Player;
-+
-+enum ObserverAddResult
-+{
-+    OBSERVER_ADD_DISABLED                   = 0x001,
-+    OBSERVER_ADD_ALREADY_HAVE               = 0x002,
-+    OBSERVER_ADD_MAX_EXCEED                 = 0x004,
-+    OBSERVER_ADD_INSTANCE_LIMIT             = 0x008,
-+    OBSERVER_ADD_BUSY                       = 0x010,
-+    OBSERVER_ADD_WATCHING_ANOTHER           = 0x020,
-+
-+    OBSERVER_ADD_SUCCESS                    = 0x100
-+};
-+
-+enum ObserverRemoveReason : uint8
-+{
-+    OBSERVER_REMOVE_SELF                    = 1,
-+    OBSERVER_REMOVE_KICKED                  = 2,
-+    OBSERVER_REMOVE_LOGOUT                  = 3,
-+    OBSERVER_REMOVE_SWITCH                  = 4
-+};
-+
-+enum ObserverFlags : uint8
-+{
-+    OBSERVER_FLAG_ALLOWED                   = 1,
-+    OBSERVER_FLAG_FORBIDDEN                 = 2,
-+    OBSERVER_FLAG_PENDING                   = 3
-+};
-+
-+typedef std::unordered_map<uint32 /*guidlow*/, Player* /*observer*/> ObserverMap;
-+typedef std::unordered_map<uint32 /*guidlow*/, uint8 /*flag*/> ObserverAccessList;
-+
-+class ObserversMgr
-+{
-+    public:
-+        ObserversMgr(Player* const observed);
-+        ~ObserversMgr();
-+
-+        static bool IsObserverModEnabled();
-+        static bool SneaksEnabled();
-+        //static bool SendCombatPackets();
-+        static bool SendItemPackets();
-+
-+        static void ReloadConfig() { LoadConfig(true); }
-+        static void LoadConfig(bool force = false);
-+
-+        //owner part
-+        Player* GetOwner() const { return _owner; }
-+        ObserverMap const* GetObserversMap() const { return &_observers; }
-+        //ObserverMap* GetObserversMap() { return &_observers; }
-+
-+        void UpdateMap(uint32 diff);
-+
-+        Player* GetObserver(uint32 guidlow) const;
-+        //bool HasObservers() const { return !_observers.empty(); }
-+        uint16 GetObserversCount() const { return _observers.size(); }
-+        uint16 GetObserversCountWithoutSneaks() const;
-+        static uint16 GetMaxObservers(); //not owner part
-+        static bool RestrictObservers(Player const* owner); //not owner part
-+        static bool CanAddObserver(Player* observer); //not owner part
-+        static bool IsSneak(Player const* observer); //not owner part
-+
-+        void TeleportObserver(Player* observer);
-+
-+        void OnTeleportFar();
-+
-+        void RemoveAllObservers();
-+        void RemoveObserver(uint32 guidlow, uint8 reason);
-+        ObserverAddResult AddObserver(Player* observer);
-+
-+        ObserverAccessList const* GetAccessList() const { return &_accessList; }
-+        //ObserverAccessList* GetAccessList() { return &_accessList; }
-+
-+        bool IsObserverAllowed(uint32 guidlow) const;
-+        bool IsObserverForbidden(uint32 guidlow) const;
-+        bool IsObserverInQuery(uint32 guidlow) const;
-+        void AllowObserver(uint32 guidlow);
-+        void ForbidObserver(uint32 guidlow);
-+        void QueryObserver(uint32 guidlow);
-+
-+        uint16 GetAllowedObserversCount() const;
-+        uint16 GetForbiddenObserversCount() const;
-+        uint16 GetPendingObserversCount() const;
-+
-+        bool IsAutoAllow() const { return _autoAllow; }
-+        bool IsAutoForbid() const { return _autoForbid; }
-+        void SetAutoAllow(bool set);
-+        void SetAutoForbid(bool set);
-+
-+        void SendToObservers(WorldPacket* packet);
-+        void SendToObservers(uint16 opcode, void* uniData1, void* uniData2 = NULL, void* uniData3 = NULL);
-+
-+        //observer part
-+        Player* GetAcceptor() const { return _acceptor; }
-+        void SetAcceptor(Player* acceptor) { _acceptor = acceptor; }
-+        //saved values retrieve
-+        uint32 GetOrigMapId() const { return OrigMapId; }
-+        uint32 GetOrigZoneId() const { return OrigZoneId; }
-+        void GetOrigPos(float &x, float& y, float &z, float &o)
-+        { x = OrigX; y = OrigY; z = OrigZ; o = OrigO; }
-+
-+    protected:
-+        uint32 OrigModelId;
-+        uint32 OrigMapId;
-+        uint32 OrigZoneId;
-+        float OrigX, OrigY, OrigZ, OrigO;
-+
-+        bool ErrorSent;
-+
-+    private:
-+        void _unloadAccessList();
-+        void _loadAccessList();
-+        void _storeAccessList();
-+
-+        Player* const _owner;
-+        Player* _acceptor;
-+        ObserverMap _observers;
-+        ObserverAccessList _accessList;
-+
-+        bool _sneakPeak;
-+        bool _needUpdate;
-+        bool _autoAllow;
-+        bool _autoForbid;
-+
-+        uint32 _rootTimer;
-+};
-+
-+#endif
-diff --git a/src/server/game/Spells/Auras/SpellAuras.cpp b/src/server/game/Spells/Auras/SpellAuras.cpp
-index 94dc12f..0098d76 100644
---- a/src/server/game/Spells/Auras/SpellAuras.cpp
-+++ b/src/server/game/Spells/Auras/SpellAuras.cpp
-@@ -2647,6 +2647,11 @@ void UnitAura::FillTargetMap(std::unordered_map<Unit*, uint8>& targets, Unit* ca
-         if (GetUnitOwner()->HasUnitState(UNIT_STATE_ISOLATED))
-             continue;
- 
-+        // Observers: Observers are isolated
-+        if (caster->GetTypeId() == TYPEID_PLAYER && caster->ToPlayer()->IsObserver())
-+            continue;
-+        // End Observers
-+
-         std::vector<Unit*> units;
-         ConditionContainer* condList = m_spellInfo->Effects[effIndex].ImplicitTargetConditions;
- 
-diff --git a/src/server/game/Spells/Spell.cpp b/src/server/game/Spells/Spell.cpp
-index b95ede0..b52cedd 100644
---- a/src/server/game/Spells/Spell.cpp
-+++ b/src/server/game/Spells/Spell.cpp
-@@ -5038,6 +5038,11 @@ void Spell::HandleEffects(Unit* pUnitTarget, Item* pItemTarget, GameObject* pGOT
- 
- SpellCastResult Spell::CheckCast(bool strict, uint32* param1 /*= nullptr*/, uint32* param2 /*= nullptr*/)
- {
-+    // Observers: deny spells for observers
-+    if (m_caster->GetTypeId() == TYPEID_PLAYER && m_caster->ToPlayer()->IsObserver())
-+        return SPELL_FAILED_DONT_REPORT;
-+    // End Observers
-+
-     // check death state
-     if (m_caster->ToUnit() && !m_caster->ToUnit()->IsAlive() && !m_spellInfo->IsPassive() && !(m_spellInfo->HasAttribute(SPELL_ATTR0_CASTABLE_WHILE_DEAD) || (IsTriggered() && !m_triggeredByAuraSpell)))
-         return SPELL_FAILED_CASTER_DEAD;
-diff --git a/src/server/scripts/Custom/Observers/ObserversCS.cpp b/src/server/scripts/Custom/Observers/ObserversCS.cpp
-new file mode 100644
-index 0000000..770d40e
---- /dev/null
-+++ b/src/server/scripts/Custom/Observers/ObserversCS.cpp
++++ b/src/server/game/Observers/ObserversCS.cpp
 @@ -0,0 +1,810 @@
 +#include "ObserversMgr.h"
 +#include "CharacterCache.h"
@@ -2064,7 +1029,7 @@ index 0000000..770d40e
 +            else if (!mgr->IsObserverAllowed(observer->GetGUID().GetCounter()))
 +            {
 +                //first time
-+                mgr->QueryObserver(observer->GetGUID().GetCounter());
++                mgr->QueueObserver(observer->GetGUID().GetCounter());
 +                handler->PSendSysMessage("Cannot observe %s: not in access list. Pending...", target->GetName().c_str());
 +                //announce to acceptor (target)
 +                ChatHandler ch(target->GetSession());
@@ -2084,11 +1049,11 @@ index 0000000..770d40e
 +                    case CLASS_DRUID:           plLink = "|cffff7d0a|"; break;
 +                    default:                    plLink = "|cffffffff|"; break;
 +                }
++
 +                plLink += "Hplayer:"+observer->GetName()+"|h["+observer->GetName()+"]|h|r";
 +                uint8 loc = handler->GetSessionDbcLocale();
-+                ch.PSendSysMessage("New pending observer: %s: %s %s %s (level %u)", plLink.c_str(),
-+                    observer->GetGender() == GENDER_MALE ? ch.GetTrinityString(LANG_CHARACTER_GENDER_MALE) : ch.GetTrinityString(LANG_CHARACTER_GENDER_FEMALE),
-+                    GetRaceName(observer->GetRace(), loc), GetClassName(observer->GetClass(), loc), (uint32)observer->GetLevel());
++
++                ch.PSendSysMessage("%s wishes to observe you, added to pending list...", plLink.c_str());
 +
 +                return false;
 +            }
@@ -2670,6 +1635,1077 @@ index 0000000..770d40e
 +{
 +    new script_observers_commands();
 +}
+diff --git a/src/server/game/Observers/ObserversMgr.cpp b/src/server/game/Observers/ObserversMgr.cpp
+new file mode 100644
+index 0000000..bea18f1
+--- /dev/null
++++ b/src/server/game/Observers/ObserversMgr.cpp
+@@ -0,0 +1,864 @@
++#include "ObserversMgr.h"
++#include "CharacterCache.h"
++#include "Chat.h"
++#include "Config.h"
++#include "DatabaseWorkerPool.h"
++#include "Language.h"
++#include "Map.h"
++#include "MapManager.h"
++#include "Player.h"
++#include "SpellAuraEffects.h"
++//#include "WorldSession.h"
++
++/*
++Observers system by Trickerer <https://github.com/trickerer/Observers>
++VERSION: 1.0.19b
++*/
++
++//6908 invisible transparancy 0%, sound only
++//7804 invisible transparancy 0% tiny no weapon bunny icon, sound
++//22452 invisible no weapon
++#define SPELL_ROOT_SELF 31366 // RAF (hidden)
++#define MODELID_INVISIBLE 7804
++//#define SPELL_TRANSPARENCY_100 37803 // Transparency 100% visible debuff //
++#define ROOT_PERIOD 5000
++
++//config
++bool _enableObservers;
++uint16 _maxObservers;
++bool _enableObserversDungeons;
++bool _enableObserversRaids;
++bool _enableObserversBGs;
++bool _enableObserversArenas;
++bool _enableSneaks;
++bool _sendPacketsCombat;
++bool _sendPacketsItem;
++
++bool __obsfirstload = true;
++
++void AddSC_script_observers_commands();
++
++void AddObserversScripts()
++{
++    AddSC_script_observers_commands();
++}
++
++ObserversMgr::ObserversMgr(Player* const observed) : _owner(observed), _acceptor(nullptr)
++{
++    ErrorSent = false;
++    _sneakPeak = false;
++    _needUpdate = false;
++    _autoAllow = false;
++    _autoForbid = false;
++    _rootTimer = 0;
++    _loadAccessList();
++
++    LoadConfig();
++
++    _owner->SetObserversMgr(this);
++}
++ObserversMgr::~ObserversMgr()
++{
++    RemoveAllObservers();
++    _unloadAccessList();
++
++    if (_acceptor)
++        _acceptor->GetObserversMgr()->RemoveObserver(_owner->GetGUID().GetCounter(), OBSERVER_REMOVE_LOGOUT);
++
++    ASSERT(!_acceptor);
++}
++
++void ObserversMgr::LoadConfig(bool force)
++{
++    if (__obsfirstload)
++        __obsfirstload = false;
++    else if (!force)
++        return;
++
++    _enableObservers         = sConfigMgr->GetBoolDefault("Observers.Enable", true);
++    _maxObservers            = sConfigMgr->GetIntDefault("Observers.MaxObservers", 0);
++    _enableObserversDungeons = sConfigMgr->GetBoolDefault("Observers.Dungeon", true);
++    _enableObserversRaids    = sConfigMgr->GetBoolDefault("Observers.Raid", true);
++    _enableObserversBGs      = sConfigMgr->GetBoolDefault("Observers.BG", true);
++    _enableObserversArenas   = sConfigMgr->GetBoolDefault("Observers.Arena", true);
++    _enableSneaks            = sConfigMgr->GetBoolDefault("Observers.Sneaks", true);
++    _sendPacketsCombat       = sConfigMgr->GetBoolDefault("Observers.SendPackets.Combat", false);
++    _sendPacketsItem         = sConfigMgr->GetBoolDefault("Observers.SendPackets.Item", true);
++}
++
++bool ObserversMgr::IsObserverModEnabled()
++{
++    return _enableObservers;
++}
++
++bool ObserversMgr::SneaksEnabled()
++{
++    return _enableSneaks;
++}
++
++//bool ObserversMgr::SendCombatPackets()
++//{
++//    return _sendPacketsCombat;
++//}
++
++bool ObserversMgr::SendItemPackets()
++{
++    return _sendPacketsItem;
++}
++
++uint16 ObserversMgr::GetObserversCountWithoutSneaks() const
++{
++    uint16 count = 0;
++    for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
++        if (!IsSneak(itr->second))
++            ++count;
++
++    return count;
++}
++
++uint16 ObserversMgr::GetMaxObservers()
++{
++    return _maxObservers ? _maxObservers : std::numeric_limits<uint16>::max();
++}
++//Only called from Player::Update(uint32)
++void ObserversMgr::UpdateMap(uint32 diff)
++{
++    _rootTimer += diff;
++
++    if (_needUpdate)
++    {
++        _needUpdate = false;
++        _storeAccessList();
++    }
++
++    if (_autoAllow || _autoForbid)
++    {
++        for (ObserverAccessList::iterator itr = _accessList.begin(); itr != _accessList.end(); ++itr)
++        {
++            if (itr->second == OBSERVER_FLAG_PENDING)
++            {
++                if (_autoAllow)
++                {
++                    AllowObserver(itr->first);
++                    //itr->second = OBSERVER_FLAG_ALLOWED;
++                    if (Player* observer = ObjectAccessor::FindPlayerByLowGUID(itr->first))
++                    {
++                        ChatHandler ch(observer->GetSession());
++                        ch.PSendSysMessage("You are now allowed to observe %s", _owner->GetName().c_str());
++                        //if (CanAddObserver(observer))
++                        //    AddObserver(observer);
++                    }
++                }
++                else if (_autoForbid)
++                {
++                    ForbidObserver(itr->first);
++                    //itr->second = OBSERVER_FLAG_FORBIDDEN;
++                }
++            }
++        }
++    }
++
++    if (!_owner->IsInWorld() || !MapManager::IsValidMapCoord(*_owner) || _owner->IsBeingTeleported())
++        return;
++
++    if (_observers.empty())
++        return;
++
++    Player* observer;
++    if (_rootTimer >= ROOT_PERIOD)
++    {
++        _rootTimer = 0;
++        for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
++        {
++            observer = itr->second;
++            if (Aura* root = observer->GetAura(SPELL_ROOT_SELF))
++                root->RefreshDuration();
++        }
++    }
++
++    for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
++    {
++        observer = itr->second;
++
++        if (!observer->IsInWorld() || observer->IsBeingTeleported())
++            continue;
++
++        if (observer->GetMap() != _owner->GetMap())
++        {
++            if (observer->GetGuidValue(PLAYER_FARSIGHT))
++            {
++                ASSERT(observer->GetGuidValue(PLAYER_FARSIGHT) == _owner->GetGUID());
++                observer->SetViewpoint(_owner, false);
++            }
++
++            //Map::CanEnter and MapMgr::CanPlayerEnter are edited to not block observers
++            if (RestrictObservers(_owner) && !IsSneak(observer))
++            {
++                if (observer->GetObserversMgr()->ErrorSent == false)
++                {
++                    observer->GetObserversMgr()->ErrorSent = true;
++                    ChatHandler ch(observer->GetSession());
++                    ch.PSendSysMessage("%s is in %s which you cannot enter.",
++                        _owner->GetName().c_str(), _owner->GetMap()->GetMapName());
++                }
++
++                continue;
++            }
++
++            if (observer->GetObserversMgr()->ErrorSent == true)
++                observer->GetObserversMgr()->ErrorSent = false;
++
++            TeleportObserver(observer);
++
++            continue;
++        }
++
++        if (observer->GetGuidValue(PLAYER_FARSIGHT) != _owner->GetGUID())
++        {
++            ASSERT(observer->GetGuidValue(PLAYER_FARSIGHT) == 0);
++            observer->SetViewpoint(_owner, true);
++        }
++
++        //1) Keep close (needed for combat text to not glitch)
++        if (observer->GetDistance2d(_owner) > 15.0f)
++            observer->TeleportTo(*_owner, TELE_TO_NOT_LEAVE_COMBAT|TELE_TO_GM_MODE);
++    }
++}
++
++bool ObserversMgr::RestrictObservers(Player const* owner)
++{
++    Map const* currMap = owner->FindMap();
++
++    if (!currMap)
++        return true;
++
++    if ((!_enableObserversDungeons && currMap->IsNonRaidDungeon()) ||
++        (!_enableObserversRaids && currMap->IsRaid()) ||
++        (!_enableObserversBGs && currMap->IsBattleground()) ||
++        (!_enableObserversArenas && currMap->IsBattleArena()))
++        return true;
++
++    return false;
++}
++//invoker conditions
++bool ObserversMgr::CanAddObserver(Player* observer)
++{
++    if (!IsObserverModEnabled())
++        return false; //silent
++
++    // player himself has observers
++    //TODO: fix this properly
++    //if (observer->GetObserversMgr() && !observer->GetObserversMgr()->GetObserversMap()->empty())
++    //    return false;
++
++    if (observer->GetCharmerOrOwnerOrOwnGUID() != observer->GetGUID() || observer->GetCharmedGUID() ||
++        (observer->GetMinionGUID() && observer->GetMinionGUID() != observer->GetPetGUID()) ||
++        observer->GetGuidValue(PLAYER_FARSIGHT) || observer->GetAI() ||
++        observer->IsInFlight() || observer->GetSession()->isLogingOut() ||
++        observer->IsBeingTeleported() || observer->IsMounted() ||
++        !observer->CanFreeMove() || observer->duel || observer->GetTransformSpell() ||
++        (observer->IsPvP() && !(observer->GetByteValue(UNIT_FIELD_BYTES_2, 1) & UNIT_BYTE2_FLAG_SANCTUARY)) ||
++        observer->HasAuraType(SPELL_AURA_PERIODIC_DAMAGE) ||
++        observer->IsInCombat() || !observer->IsAlive() ||
++        observer->IsUnderWater() || observer->IsMirrorTimerActive(FATIGUE_TIMER) ||
++        observer->IsMirrorTimerActive(BREATH_TIMER) || observer->IsMirrorTimerActive(FIRE_TIMER))
++        return false;
++
++    if (observer->GetCurrentSpell(CURRENT_MELEE_SPELL) ||
++        observer->GetCurrentSpell(CURRENT_GENERIC_SPELL) ||
++        observer->GetCurrentSpell(CURRENT_CHANNELED_SPELL) ||
++        observer->GetCurrentSpell(CURRENT_AUTOREPEAT_SPELL))
++        return false;
++
++    if (observer->isMoving())
++        return false;
++
++    if (observer->GetGroup() || observer->GetGroupInvite())
++        return false;
++
++    if (observer->isUsingLfg())
++        return false;
++
++    if (observer->InBattlegroundQueue())
++        return false;
++
++    Map const* map = observer->FindMap();
++    if (!map || !map->GetEntry()->IsWorldMap())
++        return false;
++
++    return true;
++}
++
++bool ObserversMgr::IsSneak(Player const* observer)
++{
++    return _enableSneaks && observer->IsGameMaster();
++}
++
++Player* ObserversMgr::GetObserver(uint32 guidlow) const
++{
++    ObserverMap::const_iterator itr = _observers.find(guidlow);
++    return itr != _observers.end() ? itr->second : nullptr;
++}
++
++void ObserversMgr::TeleportObserver(Player* observer)
++{
++    if (!MapManager::IsValidMapCoord(*_owner))
++        return;
++
++    if (_owner->GetMap()->IsDungeon())
++    {
++        if (_owner->GetMap()->IsRaid())
++            observer->SetDungeonDifficulty(_owner->GetDungeonDifficulty());
++    }
++    observer->TeleportTo(*_owner, TELE_TO_GM_MODE);
++    observer->SetPhaseMask(_owner->GetPhaseMask(), true);
++}
++
++void ObserversMgr::OnTeleportFar()
++{
++    Player* observer;
++    ObserversMgr* mgr;
++    for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
++    {
++        observer = itr->second;
++        mgr = observer->GetObserversMgr();
++
++        if (!observer->IsInWorld() || observer->IsBeingTeleported())
++            continue;
++
++        if (observer->GetGuidValue(PLAYER_FARSIGHT))
++        {
++            ASSERT(observer->GetGuidValue(PLAYER_FARSIGHT) == _owner->GetGUID());
++            observer->SetViewpoint(_owner, false);
++        }
++
++        uint32 mapId = mgr->GetOrigMapId();
++        float x,y,z,o;
++        mgr->GetOrigPos(x, y, z, o);
++        observer->TeleportTo(mapId, x, y, z, o);
++    }
++}
++
++void ObserversMgr::RemoveAllObservers()
++{
++    while (!_observers.empty())
++        RemoveObserver(_observers.begin()->first, OBSERVER_REMOVE_LOGOUT);
++}
++
++void ObserversMgr::RemoveObserver(uint32 guidlow, uint8 reason)
++{
++    ObserverMap::const_iterator itr = _observers.find(guidlow);
++    if (itr == _observers.end())
++    {
++        std::string obName;
++        sCharacterCache->GetCharacterNameByGuid(ObjectGuid(HighGuid::Player, guidlow), obName);
++        TC_LOG_ERROR("entities.unit", "%s (%u) tried to remove observer %s (%u) which doesn't belong to his observerMgr!!",
++            _owner->GetName().c_str(), _owner->GetGUID().GetCounter(), obName.c_str(), guidlow);
++        //ASSERT(false);
++        return;
++    }
++
++    Player* observer = itr->second;
++    ObserversMgr* mgr = observer->GetObserversMgr();
++    bool sneak = IsSneak(observer);
++
++    // same/different map
++    if (observer->GetGuidValue(PLAYER_FARSIGHT))
++    {
++        ASSERT(observer->GetGuidValue(PLAYER_FARSIGHT) == _owner->GetGUID());
++        observer->SetViewpoint(_owner, false);
++    }
++
++    uint32 mapId = mgr->GetOrigMapId();
++    float x,y,z,o;
++    mgr->GetOrigPos(x, y, z, o);
++    observer->TeleportTo(mapId, x, y, z, o);
++
++    _observers.erase(itr);
++
++    ASSERT(mgr->GetAcceptor() == _owner);
++    mgr->SetAcceptor(nullptr);
++
++    observer->RemoveAurasDueToSpell(SPELL_ROOT_SELF);
++    //observer->RecalculateObjectScale();
++    observer->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
++    observer->SetUInt32Value(UNIT_FIELD_DISPLAYID, mgr->OrigModelId);
++    observer->SetVisible(true);
++
++    if (!observer->GetSession()->isLogingOut())
++    {
++        ChatHandler ch(observer->GetSession());
++        std::string reasonStr = "You are no longer observing %s";
++        if (reason == OBSERVER_REMOVE_KICKED)
++            reasonStr += " (kicked)";
++        else if (reason == OBSERVER_REMOVE_LOGOUT)
++            reasonStr += " (logged out)";
++        ch.PSendSysMessage(reasonStr.c_str(), _owner->GetName().c_str());
++    }
++    if (!_owner->GetSession()->isLogingOut() && !sneak)
++    {
++        ChatHandler ch(_owner->GetSession());
++        std::string reasonStr = "%s is no longer observing you";
++        if (reason == OBSERVER_REMOVE_KICKED)
++            reasonStr += " (kicked)";
++        else if (reason == OBSERVER_REMOVE_LOGOUT)
++            reasonStr += " (logged out)";
++        ch.PSendSysMessage(reasonStr.c_str(), observer->GetName().c_str());
++    }
++}
++
++ObserverAddResult ObserversMgr::AddObserver(Player* observer)
++{
++    if (!_enableObservers)
++    {
++        ChatHandler ch(observer->GetSession());
++        ch.SendSysMessage("Observers system is currently disabled.");
++        return OBSERVER_ADD_DISABLED;
++    }
++
++    if (observer->IsObserver())
++    {
++        ChatHandler ch(observer->GetSession());
++        ch.PSendSysMessage("Cannot start observing %s while observing another player", _owner->GetName().c_str());
++        return OBSERVER_ADD_WATCHING_ANOTHER;
++    }
++    //we are observing another player - chain through
++    if (_acceptor)
++    {
++        ChatHandler ch(observer->GetSession());
++        ch.PSendSysMessage("Cannot start observing: %s is observing %s.", _owner->GetName().c_str(), _acceptor->GetName().c_str());
++        return OBSERVER_ADD_WATCHING_ANOTHER;
++    }
++
++    if (GetObserver(observer->GetGUID().GetCounter()))
++        return OBSERVER_ADD_ALREADY_HAVE; //Silent error, intended
++    if (_owner->IsBeingTeleported())
++    {
++        ChatHandler ch(observer->GetSession());
++        ch.PSendSysMessage("You cannot watch %s while he is about to teleport. Try again.", _owner->GetName().c_str());
++        return OBSERVER_ADD_BUSY;
++    }
++    if (GetObserversCountWithoutSneaks() >= GetMaxObservers())
++    {
++        ChatHandler ch(observer->GetSession());
++        ch.PSendSysMessage("%s exceeded max observers (%u).", _owner->GetName().c_str(), GetMaxObservers());
++        return OBSERVER_ADD_MAX_EXCEED;
++    }
++
++    ObserversMgr* mgr = observer->GetObserversMgr();
++    if (!mgr)
++        mgr = new ObserversMgr(observer);
++
++    _observers[observer->GetGUID().GetCounter()] = observer;
++    mgr->SetAcceptor(_owner);
++
++    //save old values
++    mgr->OrigMapId  = observer->GetMapId();
++    mgr->OrigZoneId = observer->GetZoneId();
++    observer->GetPosition(mgr->OrigX, mgr->OrigY, mgr->OrigZ, mgr->OrigO);
++
++    mgr->OrigModelId = observer->GetUInt32Value(UNIT_FIELD_DISPLAYID);
++
++    //invisible unattackable state
++    observer->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE);
++    observer->SetVisible(false);
++    observer->SetUInt32Value(UNIT_FIELD_DISPLAYID, MODELID_INVISIBLE);
++
++    //scale
++    //observer->SetObjectScale(0.f);
++
++    observer->UnsummonPetTemporaryIfAny();
++
++    //disable movement
++    if (Aura* root = observer->AddAura(SPELL_ROOT_SELF, observer))
++    {
++        root->SetDuration(20000);
++        root->SetMaxDuration(20000);
++    }
++
++    return OBSERVER_ADD_SUCCESS;
++}
++
++//UTIL
++bool ObserversMgr::IsObserverAllowed(uint32 guidlow) const
++{
++    ObserverAccessList::const_iterator itr = _accessList.find(guidlow);
++    return itr != _accessList.end() ? itr->second == OBSERVER_FLAG_ALLOWED : false;
++}
++
++bool ObserversMgr::IsObserverForbidden(uint32 guidlow) const
++{
++    ObserverAccessList::const_iterator itr = _accessList.find(guidlow);
++    return itr != _accessList.end() ? itr->second == OBSERVER_FLAG_FORBIDDEN : false;
++}
++
++bool ObserversMgr::IsObserverInQuery(uint32 guidlow) const
++{
++    ObserverAccessList::const_iterator itr = _accessList.find(guidlow);
++    return itr != _accessList.end() ? itr->second == OBSERVER_FLAG_PENDING : false;
++}
++
++void ObserversMgr::AllowObserver(uint32 guidlow)
++{
++    _accessList[guidlow] = OBSERVER_FLAG_ALLOWED;
++    if (!_needUpdate)
++        _needUpdate = true;
++}
++
++void ObserversMgr::ForbidObserver(uint32 guidlow)
++{
++    _accessList[guidlow] = OBSERVER_FLAG_FORBIDDEN;
++    if (!_needUpdate)
++        _needUpdate = true;
++}
++
++void ObserversMgr::QueueObserver(uint32 guidlow)
++{
++    _accessList[guidlow] = OBSERVER_FLAG_PENDING;
++    if (!_needUpdate)
++        _needUpdate = true;
++}
++
++uint16 ObserversMgr::GetAllowedObserversCount() const
++{
++    uint16 count = 0;
++    for (ObserverAccessList::const_iterator itr = _accessList.begin(); itr != _accessList.end(); ++itr)
++        if (itr->second == OBSERVER_FLAG_ALLOWED)
++            ++count;
++
++    return count;
++}
++
++uint16 ObserversMgr::GetForbiddenObserversCount() const
++{
++    uint16 count = 0;
++    for (ObserverAccessList::const_iterator itr = _accessList.begin(); itr != _accessList.end(); ++itr)
++        if (itr->second == OBSERVER_FLAG_FORBIDDEN)
++            ++count;
++
++    return count;
++}
++
++uint16 ObserversMgr::GetPendingObserversCount() const
++{
++    uint16 count = 0;
++    for (ObserverAccessList::const_iterator itr = _accessList.begin(); itr != _accessList.end(); ++itr)
++        if (itr->second == OBSERVER_FLAG_PENDING)
++            ++count;
++
++    return count;
++}
++
++void ObserversMgr::SetAutoAllow(bool set)
++{
++    _autoAllow = set;
++    if (set && _autoForbid) // autoallow and autoforbid conflict
++        _autoForbid = false;
++}
++
++void ObserversMgr::SetAutoForbid(bool set)
++{
++    _autoForbid = set;
++    if (set && _autoAllow) // autoallow and autoforbid conflict
++        _autoAllow = false;
++}
++
++void ObserversMgr::_unloadAccessList()
++{
++    _needUpdate = false;
++    while (!_accessList.empty())
++        _accessList.erase(_accessList.begin());
++}
++//ACCESS
++void ObserversMgr::_loadAccessList()
++{
++    QueryResult result = CharacterDatabase.PQuery("SELECT observer, flag FROM characters_observers WHERE guid = %u",
++        _owner->GetGUID().GetCounter());
++
++    if (result)
++    {
++        Field* fields = result->Fetch();
++        do
++        {
++            _accessList[fields[0].GetUInt32()] = fields[1].GetUInt8();
++        }
++        while (result->NextRow());
++    }
++}
++
++void ObserversMgr::_storeAccessList()
++{
++    for (ObserverAccessList::const_iterator itr = _accessList.begin(); itr != _accessList.end(); ++itr)
++    {
++        //ASYNC
++        CharacterDatabase.PExecute("REPLACE INTO characters_observers (guid, observer, flag) VALUES (%u, %u, %u)",
++            _owner->GetGUID().GetCounter(), itr->first, itr->second);
++    }
++}
++//PACKETS
++void ObserversMgr::SendToObservers(WorldPacket* packet)
++{
++    //copy packet
++    WorldPacket data = WorldPacket(*packet);
++    for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
++        if (itr->second->IsInWorld())
++            itr->second->GetSession()->SendPacket(&data);
++}
++
++void ObserversMgr::SendToObservers(uint16 opcode, void* uniData1, void* uniData2, void* uniData3)
++{
++    if (_observers.empty())
++        return;
++
++    // Notes:
++    // SendSpellDamageResist (SMSG_PROCRESIST) - Unused
++
++    switch (opcode)
++    {
++        case SMSG_SPELLORDAMAGE_IMMUNE:
++        {
++            if (_sendPacketsCombat == false)
++                break;
++
++            Unit* target = (Unit*)uniData1;
++            uint32 spellId = *((uint32*)uniData2);
++
++            for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
++            {
++                if (!itr->second->IsInWorld())
++                    continue;
++
++                // Copied from Unit::SendSpellDamageImmune
++                WorldPacket data(SMSG_SPELLORDAMAGE_IMMUNE, (8+8+4+1));
++                data << uint64(itr->second->GetGUID());
++                data << uint64(target->GetGUID());
++                data << uint32(spellId);
++                data << uint8(0); // bool - log format: 0-default, 1-debug
++
++                itr->second->GetSession()->SendPacket(&data);
++            }
++
++            break;
++        }
++        case SMSG_SPELLLOGMISS:
++        {
++            if (_sendPacketsCombat == false)
++                break;
++
++            Unit* target = (Unit*)uniData1;
++            uint32 spellId = *((uint32*)uniData2);
++            SpellMissInfo missInfo = *((SpellMissInfo*)uniData3);
++
++            for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
++            {
++                if (!itr->second->IsInWorld())
++                    continue;
++
++                // Copied from Unit::SendSpellMiss
++                WorldPacket data(SMSG_SPELLLOGMISS, (4+8+1+4+8+1));
++                data << uint32(spellId);
++                data << uint64(itr->second->GetGUID());
++                data << uint8(0);                                       // can be 0 or 1
++                data << uint32(1);                                      // target count
++                data << uint64(target->GetGUID());                      // target GUID
++                data << uint8(missInfo);
++
++                itr->second->GetSession()->SendPacket(&data);
++            }
++
++            break;
++        }
++        case SMSG_PERIODICAURALOG:
++        {
++            if (_sendPacketsCombat == false)
++                break;
++
++            SpellPeriodicAuraLogInfo* pInfo = (SpellPeriodicAuraLogInfo*)uniData1;
++            Unit* target = (Unit*)uniData2;
++            AuraEffect const* aura = pInfo->auraEff;
++
++            for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
++            {
++                if (!itr->second->IsInWorld())
++                    continue;
++
++                // Moved from Unit::SendPeriodicAuraLog
++                WorldPacket data(SMSG_PERIODICAURALOG, 30);
++                data << target->GetPackGUID();
++                data << itr->second->GetGUID().WriteAsPacked();
++                data << uint32(aura->GetId());                          // spellId
++                data << uint32(1);                                      // count
++                data << uint32(aura->GetAuraType());                    // auraId
++                switch (aura->GetAuraType())
++                {
++                    case SPELL_AURA_PERIODIC_DAMAGE:
++                    case SPELL_AURA_PERIODIC_DAMAGE_PERCENT:
++                        data << uint32(pInfo->damage);                  // damage
++                        data << uint32(pInfo->overDamage);              // overkill?
++                        data << uint32(aura->GetSpellInfo()->GetSchoolMask());
++                        data << uint32(pInfo->absorb);                  // absorb
++                        data << uint32(pInfo->resist);                  // resist
++                        data << uint8(pInfo->critical);                 // new 3.1.2 critical tick
++                        break;
++                    default:
++                        return;
++                }
++
++                itr->second->GetSession()->SendPacket(&data);
++            }
++
++            break;
++        }
++        case SMSG_SPELLNONMELEEDAMAGELOG:
++        {
++            if (_sendPacketsCombat == false)
++                break;
++
++            //copy CalcDamageInfo
++            SpellNonMeleeDamage log = *(SpellNonMeleeDamage*)uniData1;
++            //TC_LOG_ERROR("entities.unit", "ObsMgr::SMSG_SPELLNONMELEEDAMAGELOG: attacker: %u, damage = %u (%u)",
++            //    log->attacker->GetGUID().GetCounter(), log->damage, log->cleanDamage);
++            for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
++            {
++                if (!itr->second->IsInWorld())
++                    continue;
++
++                log.attacker = itr->second; // !!Send with observer as attacker!!
++
++                // Copied from Unit::SendSpellNonMeleeDamageLog
++                WorldPacket data(SMSG_SPELLNONMELEEDAMAGELOG, (16+4+4+4+1+4+4+1+1+4+4+1)); // we guess size
++                data << log.target->GetPackGUID();
++                data << log.attacker->GetPackGUID();
++                data << uint32(log.SpellID);
++                data << uint32(log.damage);                            // damage amount
++                int32 overkill = log.damage - log.target->GetHealth();
++                data << uint32(overkill > 0 ? overkill : 0);            // overkill
++                data << uint8 (log.schoolMask);                        // damage school
++                data << uint32(log.absorb);                            // AbsorbedDamage
++                data << uint32(log.resist);                            // resist
++                data << uint8 (log.periodicLog);                       // bool: show and log spell name
++                data << uint8 (log.unused);                            // unused
++                data << uint32(log.blocked);                           // blocked
++                data << uint32(log.HitInfo);
++                data << uint8 (log.HitInfo & (SPELL_HIT_TYPE_CRIT_DEBUG | SPELL_HIT_TYPE_HIT_DEBUG | SPELL_HIT_TYPE_ATTACK_TABLE_DEBUG));
++
++                itr->second->GetSession()->SendPacket(&data);
++            }
++
++            break;
++        }
++        case SMSG_SPELLHEALLOG:
++        {
++            if (_sendPacketsCombat == false)
++                break;
++
++            //copy HealInfo
++            HealInfo healInfo = *(HealInfo*)uniData1;
++            bool critical = *(bool*)uniData2;
++            //TC_LOG_ERROR("entities.unit", "ObsMgr::SMSG_SPELLHEALLOG);
++            for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
++            {
++                if (!itr->second->IsInWorld())
++                    continue;
++
++                WorldPacket data(SMSG_SPELLHEALLOG, 8+8+4+4+4+4+1+1);
++                data << healInfo.GetTarget()->GetPackGUID();
++                data << itr->second->GetPackGUID(); //observer as source
++                data << uint32(healInfo.GetSpellInfo()->Id);
++                data << uint32(healInfo.GetHeal());
++                data << uint32(healInfo.GetHeal() - healInfo.GetEffectiveHeal());
++                data << uint32(healInfo.GetAbsorb());
++                data << uint8(critical ? 1 : 0);
++                data << uint8(0); //unused
++
++                itr->second->GetSession()->SendPacket(&data);
++            }
++
++            break;
++        }
++        case SMSG_ATTACKERSTATEUPDATE:
++        {
++            if (_sendPacketsCombat == false)
++                break;
++
++            //copy CalcDamageInfo
++            CalcDamageInfo damageInfo = *((CalcDamageInfo*)uniData1);
++            //TC_LOG_ERROR("entities.unit", "ObsMgr::SMSG_ATTACKERSTATEUPDATE: attacker: %u, damage = %u (%u)",
++            //    damageInfo->attacker->GetGUID().GetCounter(), damageInfo->damage, damageInfo->cleanDamage);
++
++            uint8 count = 1;
++            if (damageInfo.Damages[1].Damage || damageInfo.Damages[1].Absorb || damageInfo.Damages[1].Resist)
++                ++count;
++            for (ObserverMap::const_iterator itr = _observers.begin(); itr != _observers.end(); ++itr)
++            {
++                if (!itr->second->IsInWorld())
++                    continue;
++
++                damageInfo.Attacker = itr->second; // !!Send with observer as attacker!!
++
++                // Copied from Unit::SendAttackStateUpdate
++                WorldPacket data(SMSG_ATTACKERSTATEUPDATE, (4+5+5+4+4+1+(4+4+4)*2+4*2+4*2+1+4+4+4+4+4*12));
++
++                data << uint32(damageInfo.HitInfo);
++                data << damageInfo.Attacker->GetPackGUID();
++                data << damageInfo.Target->GetPackGUID();
++                data << uint32(damageInfo.Damages[0].Damage + damageInfo.Damages[1].Damage); // Full damage
++                int32 overkill = damageInfo.Damages[0].Damage + damageInfo.Damages[1].Damage - damageInfo.Target->GetHealth();
++                data << uint32(overkill < 0 ? 0 : overkill);            // Overkill
++                data << uint8(count);                                   // Sub damage count
++
++                for (uint8 i = 0; i != count; ++i)
++                {
++                    data << uint32(damageInfo.Damages[i].DamageSchoolMask);       // School of sub damage
++                    data << float(damageInfo.Damages[i].Damage);                  // sub damage
++                    data << uint32(damageInfo.Damages[i].Damage);                 // Sub Damage
++                }
++
++                if (damageInfo.HitInfo & (HITINFO_FULL_ABSORB | HITINFO_PARTIAL_ABSORB))
++                {
++                    for (uint8 i = 0; i != count; ++i)
++                        data << uint32(damageInfo.Damages[i].Absorb);             // Absorb
++                }
++
++                if (damageInfo.HitInfo & (HITINFO_FULL_RESIST | HITINFO_PARTIAL_RESIST))
++                {
++                    for (uint8 i = 0; i != count; ++i)
++                        data << uint32(damageInfo.Damages[i].Resist);             // Resist
++                }
++
++                data << uint8(damageInfo.TargetState);
++                data << uint32(0);  // Unknown attackerstate
++                data << uint32(0);  // Melee spellid
++
++                if (damageInfo.HitInfo & HITINFO_BLOCK)
++                    data << uint32(damageInfo.Blocked);
++
++                if (damageInfo.HitInfo & HITINFO_RAGE_GAIN)
++                    data << uint32(0);
++
++                //! Probably used for debugging purposes, as it is not known to appear on retail servers
++                if (damageInfo.HitInfo & HITINFO_UNK1)
++                {
++                    data << uint32(0);
++                    data << float(0);
++                    data << float(0);
++                    data << float(0);
++                    data << float(0);
++                    data << float(0);
++                    data << float(0);
++                    data << float(0);
++                    data << float(0);
++                    data << float(0);       // Found in a loop with 1 iteration
++                    data << float(0);       // ditto ^
++                    data << uint32(0);
++                }
++
++                itr->second->GetSession()->SendPacket(&data);
++            }
++
++            break;
++        }
++        default:
++            break;
++    }
++}
+diff --git a/src/server/game/Observers/ObserversMgr.h b/src/server/game/Observers/ObserversMgr.h
+new file mode 100644
+index 0000000..c8728f9
+--- /dev/null
++++ b/src/server/game/Observers/ObserversMgr.h
+@@ -0,0 +1,139 @@
++#ifndef _OBSERVERSMGR_H
++#define _OBSERVERSMGR_H
++
++#include "Common.h"
++
++/*
++Observers system by Trickerer <onlysuffering@gmail.com>
++*/
++
++class Player;
++
++enum ObserverAddResult
++{
++    OBSERVER_ADD_DISABLED                   = 0x001,
++    OBSERVER_ADD_ALREADY_HAVE               = 0x002,
++    OBSERVER_ADD_MAX_EXCEED                 = 0x004,
++    OBSERVER_ADD_INSTANCE_LIMIT             = 0x008,
++    OBSERVER_ADD_BUSY                       = 0x010,
++    OBSERVER_ADD_WATCHING_ANOTHER           = 0x020,
++
++    OBSERVER_ADD_SUCCESS                    = 0x100
++};
++
++enum ObserverRemoveReason : uint8
++{
++    OBSERVER_REMOVE_SELF                    = 1,
++    OBSERVER_REMOVE_KICKED                  = 2,
++    OBSERVER_REMOVE_LOGOUT                  = 3,
++    OBSERVER_REMOVE_SWITCH                  = 4
++};
++
++enum ObserverFlags : uint8
++{
++    OBSERVER_FLAG_ALLOWED                   = 1,
++    OBSERVER_FLAG_FORBIDDEN                 = 2,
++    OBSERVER_FLAG_PENDING                   = 3
++};
++
++typedef std::unordered_map<uint32 /*guidlow*/, Player* /*observer*/> ObserverMap;
++typedef std::unordered_map<uint32 /*guidlow*/, uint8 /*flag*/> ObserverAccessList;
++
++class ObserversMgr
++{
++    public:
++        ObserversMgr(Player* const observed);
++        ~ObserversMgr();
++
++        static bool IsObserverModEnabled();
++        static bool SneaksEnabled();
++        //static bool SendCombatPackets();
++        static bool SendItemPackets();
++
++        static void ReloadConfig() { LoadConfig(true); }
++        static void LoadConfig(bool force = false);
++
++        //owner part
++        Player* GetOwner() const { return _owner; }
++        ObserverMap const* GetObserversMap() const { return &_observers; }
++        //ObserverMap* GetObserversMap() { return &_observers; }
++
++        void UpdateMap(uint32 diff);
++
++        Player* GetObserver(uint32 guidlow) const;
++        //bool HasObservers() const { return !_observers.empty(); }
++        uint16 GetObserversCount() const { return _observers.size(); }
++        uint16 GetObserversCountWithoutSneaks() const;
++        static uint16 GetMaxObservers(); //not owner part
++        static bool RestrictObservers(Player const* owner); //not owner part
++        static bool CanAddObserver(Player* observer); //not owner part
++        static bool IsSneak(Player const* observer); //not owner part
++
++        void TeleportObserver(Player* observer);
++
++        void OnTeleportFar();
++
++        void RemoveAllObservers();
++        void RemoveObserver(uint32 guidlow, uint8 reason);
++        ObserverAddResult AddObserver(Player* observer);
++
++        ObserverAccessList const* GetAccessList() const { return &_accessList; }
++        //ObserverAccessList* GetAccessList() { return &_accessList; }
++
++        bool IsObserverAllowed(uint32 guidlow) const;
++        bool IsObserverForbidden(uint32 guidlow) const;
++        bool IsObserverInQuery(uint32 guidlow) const;
++        void AllowObserver(uint32 guidlow);
++        void ForbidObserver(uint32 guidlow);
++        void QueueObserver(uint32 guidlow);
++
++        uint16 GetAllowedObserversCount() const;
++        uint16 GetForbiddenObserversCount() const;
++        uint16 GetPendingObserversCount() const;
++
++        bool IsAutoAllow() const { return _autoAllow; }
++        bool IsAutoForbid() const { return _autoForbid; }
++        void SetAutoAllow(bool set);
++        void SetAutoForbid(bool set);
++
++        void SendToObservers(WorldPacket* packet);
++        void SendToObservers(uint16 opcode, void* uniData1, void* uniData2 = NULL, void* uniData3 = NULL);
++
++        //observer part
++        Player* GetAcceptor() const { return _acceptor; }
++        void SetAcceptor(Player* acceptor) { _acceptor = acceptor; }
++        //saved values retrieve
++        uint32 GetOrigMapId() const { return OrigMapId; }
++        uint32 GetOrigZoneId() const { return OrigZoneId; }
++        void GetOrigPos(float &x, float& y, float &z, float &o)
++        { x = OrigX; y = OrigY; z = OrigZ; o = OrigO; }
++
++    protected:
++        uint32 OrigModelId;
++        uint32 OrigMapId;
++        uint32 OrigZoneId;
++        float OrigX, OrigY, OrigZ, OrigO;
++
++        bool ErrorSent;
++
++    private:
++        void _unloadAccessList();
++        void _loadAccessList();
++        void _storeAccessList();
++
++        Player* const _owner;
++        Player* _acceptor;
++        ObserverMap _observers;
++        ObserverAccessList _accessList;
++
++        bool _sneakPeak;
++        bool _needUpdate;
++        bool _autoAllow;
++        bool _autoForbid;
++
++        uint32 _rootTimer;
++};
++
++void AddObserversScripts();
++
++#endif
+diff --git a/src/server/game/Scripting/ScriptMgr.cpp b/src/server/game/Scripting/ScriptMgr.cpp
+index 97bb772..0cb6b21 100644
+--- a/src/server/game/Scripting/ScriptMgr.cpp
++++ b/src/server/game/Scripting/ScriptMgr.cpp
+@@ -43,6 +43,8 @@
+ #include "WorldPacket.h"
+ #include "WorldSession.h"
+ 
++#include "ObserversMgr.h"
++
+ // Trait which indicates whether this script type
+ // must be assigned in the database.
+ template<typename>
+@@ -1034,6 +1036,10 @@ void ScriptMgr::Initialize()
+     // LFGScripts
+     lfg::AddSC_LFGScripts();
+ 
++    // Observers
++    AddObserversScripts();
++    // End Observers
++
+     // Load all static linked scripts through the script loader function.
+     ASSERT(_script_loader_callback,
+            "Script loader callback wasn't registered!");
+diff --git a/src/server/game/Spells/Auras/SpellAuras.cpp b/src/server/game/Spells/Auras/SpellAuras.cpp
+index 94dc12f..f50301b 100644
+--- a/src/server/game/Spells/Auras/SpellAuras.cpp
++++ b/src/server/game/Spells/Auras/SpellAuras.cpp
+@@ -2619,6 +2619,11 @@ void UnitAura::FillTargetMap(std::unordered_map<Unit*, uint8>& targets, Unit* ca
+     if (!ref)
+         ref = GetUnitOwner();
+ 
++    // Observers: Observers are isolated
++    if (ref->GetTypeId() == TYPEID_PLAYER && ref->ToPlayer()->IsObserver())
++        return;
++    // End Observers
++
+     // add non area aura targets
+     // static applications go through spell system first, so we assume they meet conditions
+     for (auto const& targetPair : _staticApplications)
+diff --git a/src/server/game/Spells/Spell.cpp b/src/server/game/Spells/Spell.cpp
+index 537a597..acd7a79 100644
+--- a/src/server/game/Spells/Spell.cpp
++++ b/src/server/game/Spells/Spell.cpp
+@@ -5038,6 +5038,11 @@ void Spell::HandleEffects(Unit* pUnitTarget, Item* pItemTarget, GameObject* pGOT
+ 
+ SpellCastResult Spell::CheckCast(bool strict, uint32* param1 /*= nullptr*/, uint32* param2 /*= nullptr*/)
+ {
++    // Observers: deny spells for observers
++    if (m_caster->GetTypeId() == TYPEID_PLAYER && m_caster->ToPlayer()->IsObserver())
++        return SPELL_FAILED_DONT_REPORT;
++    // End Observers
++
+     // check death state
+     if (m_caster->ToUnit() && !m_caster->ToUnit()->IsAlive() && !m_spellInfo->IsPassive() && !(m_spellInfo->HasAttribute(SPELL_ATTR0_CASTABLE_WHILE_DEAD) || (IsTriggered() && !m_triggeredByAuraSpell)))
+         return SPELL_FAILED_CASTER_DEAD;
 diff --git a/src/server/scripts/Custom/custom_script_loader.cpp b/src/server/scripts/Custom/custom_script_loader.cpp
 index 1df319b..33dc1be 100644
 --- a/src/server/scripts/Custom/custom_script_loader.cpp
