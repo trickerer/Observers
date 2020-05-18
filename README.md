@@ -1,8 +1,10 @@
-### This mod was last updated: 30 Apr 2020, TrinityCore revision: https://github.com/TrinityCore/TrinityCore/commit/d3578c3474
+### This mod was last updated:
+### last version: 14 May 2020, TrinityCore revision: [e2434e4f47](https://github.com/TrinityCore/TrinityCore/commit/e2434e4f47)
+### 2013 version: 12 Dec 2013. TrinityCore revision: [385e2dba37](https://github.com/TrinityCore/TrinityCore/commit/385e2dba37)
 
 # [ Observers Manual ]
 >Compiled by: Trickerer (onlysuffering @ Gmail dot Com)  
->Version 0.1 - 02 May 2020  
+>Version 0.2 - 18 May 2020  
 
 ---------------------------------------
 ### Contents
@@ -99,6 +101,9 @@ KEY:
 ### Usage
 First pick a player you want to watch and use `.observe` command, this will put you into pending list for that player and send a notification. After you are approved you are free to use `.observe` command again to start watching.  
 If you want to silently peek on a player, use `.observe` command while in GM mode (sneaks must be enabled in config). This will bypass all conditions and give no output on the other side, you are also unaffected by any forbid, kick and list commands whatsoever.  
+```
+Note that you can only start observing if your character is idle and in a safe spot.
+```
   
 While active, observers become invisible and are prevented from performing any activities which interfere with other players' game experience. 
 ### DB Occupations
@@ -112,6 +117,9 @@ If you need to uninstall the mod you'll have to remove `characters_observers` ta
 ---------------------------------------
 ## Guide Changelog
 
+- **Version 0.2** (_18 May 2020_)
+    - Add extra info on conditions
+    - Add info on 2013 version
 - **Version 0.1** (_02 May 2020_)
     - Create proper manual
 
