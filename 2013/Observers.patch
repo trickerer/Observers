@@ -1,6 +1,6 @@
-From dd56ba62e3ea6ee7b043b51a8f38afd6f276e46f Mon Sep 17 00:00:00 2001
+From c9fa681e0d5ee7b26aab489a51b52ae95c0af549 Mon Sep 17 00:00:00 2001
 From: trickerer <onlysuffering@gmail.com>
-Date: Sun, 17 May 2020 22:35:57 +0700
+Date: Mon, 6 Jul 2020 13:13:40 +0700
 Subject: [PATCH] Observers2013
 
 ---
@@ -19,14 +19,14 @@ Subject: [PATCH] Observers2013
  src/server/game/Maps/Map.cpp                     |  13 +
  src/server/game/Maps/MapInstanced.cpp            |  14 +
  src/server/game/Maps/MapManager.cpp              |   5 +
- src/server/game/Observers/ObserversCS.cpp        | 818 ++++++++++++++++++++++
+ src/server/game/Observers/ObserversCS.cpp        | 828 ++++++++++++++++++++++
  src/server/game/Observers/ObserversMgr.cpp       | 855 +++++++++++++++++++++++
  src/server/game/Observers/ObserversMgr.h         | 161 +++++
  src/server/game/Scripting/ScriptLoader.cpp       |   8 +
  src/server/game/Spells/Auras/SpellAuras.cpp      |   7 +
  src/server/game/Spells/Spell.cpp                 |   5 +
  src/server/worldserver/worldserver.conf.dist     |  57 ++
- 22 files changed, 2243 insertions(+)
+ 22 files changed, 2253 insertions(+)
  create mode 100644 sql/custom/Observers/characters_observers.sql
  create mode 100644 src/server/game/Observers/ObserversCS.cpp
  create mode 100644 src/server/game/Observers/ObserversMgr.cpp
@@ -820,10 +820,10 @@ index 2e034f5..b81c683 100644
          return false;
 diff --git a/src/server/game/Observers/ObserversCS.cpp b/src/server/game/Observers/ObserversCS.cpp
 new file mode 100644
-index 0000000..b0bc865
+index 0000000..42b6b91
 --- /dev/null
 +++ b/src/server/game/Observers/ObserversCS.cpp
-@@ -0,0 +1,818 @@
+@@ -0,0 +1,828 @@
 +#include "ObserversMgr.h"
 +//#include "CharacterCache.h"
 +#include "Chat.h"
@@ -903,7 +903,7 @@ index 0000000..b0bc865
 +            { "forbid",     PLAYER_COMMANDS,                false, NULL,       "", observersForbidCommandTable },
 +            { "kick",       PLAYER_COMMANDS,                false, NULL,         "", observersKickCommandTable },
 +            { "list",       PLAYER_COMMANDS,                false, NULL,         "", observersListCommandTable },
-+            { "debug",      GM_COMMANDS,                    false, NULL,        "", observersDebugCommandTable },
++            //{ "debug",      GM_COMMANDS,                    false, NULL,        "", observersDebugCommandTable },
 +            { "reloadcfg",  GM_COMMANDS,                    true,  &HandleObserversReloadCfgCommand,        "" },
 +            { NULL,         0,                              false, NULL,                                    "" }
 +        };
@@ -912,7 +912,7 @@ index 0000000..b0bc865
 +        {
 +            { "observers",  PLAYER_COMMANDS,                false, NULL,             "", observersCommandTable },
 +            { "observe",    PLAYER_COMMANDS,                false, HandleObserveCommand,                    "" },
-+            { "deobserve",  PLAYER_COMMANDS,                false, HandleDeObserveCommand,                  "" },
++            //{ "deobserve",  PLAYER_COMMANDS,                false, HandleDeObserveCommand,                  "" },
 +            { NULL,         0,                              false, NULL,                                    "" }
 +        };
 +        return commandTable;
@@ -925,7 +925,7 @@ index 0000000..b0bc865
 +        handler->PSendSysMessage("Curr set to %i", val);
 +        return true;
 +    }
-+    static bool HandleObserversDebugContinueCommand(ChatHandler* handler, const char* args)
++    static bool HandleObserversDebugContinueCommand(ChatHandler* handler, const char* /*args*/)
 +    {
 +        handler->GetSession()->GetPlayer()->SetDisplayId(uint32(currModel++));
 +        if (!(currModel % 100))
@@ -937,10 +937,23 @@ index 0000000..b0bc865
 +    {
 +        handler->SetSentErrorMessage(true);
 +
++        Player* observer = handler->GetSession()->GetPlayer();
++
 +        if (!*args)
 +        {
++            if (observer->IsObserver())
++            {
++                ObserversMgr* mgr = observer->GetObserversMgr(); //always exists if observer
++                Player* acceptor = mgr->GetAcceptor(); //always exists if observer
++                ObserversMgr* amgr = acceptor->GetObserversMgr();
++                ASSERT(amgr && amgr->GetObserver(observer->GetGUIDLow()));
++                amgr->RemoveObserver(observer->GetGUIDLow(), OBSERVER_REMOVE_SELF);
++                return true;
++            }
++
 +            handler->SendSysMessage("Syntax: .observe #name");
 +            handler->SendSysMessage("Enables observation of character #name");
++            handler->SendSysMessage("Type '.observe' again to cancel");
 +            return false;
 +        }
 +
@@ -948,8 +961,6 @@ index 0000000..b0bc865
 +
 +        if (!ObserversMgr::IsObserverModEnabled())
 +            return false; //silent
-+
-+        Player* observer = handler->GetSession()->GetPlayer();
 +
 +        if (!ObserversMgr::CanAddObserver(observer))
 +        {
@@ -1058,7 +1069,6 @@ index 0000000..b0bc865
 +                }
 +
 +                plLink += "Hplayer:"+observer->GetName()+"|h["+observer->GetName()+"]|h|r";
-+                uint8 loc = handler->GetSessionDbcLocale();
 +
 +                ch.PSendSysMessage("%s wishes to observe you, added to pending list...", plLink.c_str());
 +
@@ -1644,7 +1654,7 @@ index 0000000..b0bc865
 +}
 diff --git a/src/server/game/Observers/ObserversMgr.cpp b/src/server/game/Observers/ObserversMgr.cpp
 new file mode 100644
-index 0000000..088f3a2
+index 0000000..2f92643
 --- /dev/null
 +++ b/src/server/game/Observers/ObserversMgr.cpp
 @@ -0,0 +1,855 @@
@@ -1662,14 +1672,14 @@ index 0000000..088f3a2
 +
 +/*
 +Observers system by Trickerer <https://github.com/trickerer/Observers>
-+VERSION: 1.0.19b
++VERSION: 1.0.20b
 +*/
 +
 +//6908 invisible transparancy 0%, sound only
 +//7804 invisible transparancy 0% tiny no weapon bunny icon, sound
 +//22452 invisible no weapon
 +#define SPELL_ROOT_SELF 31366 // RAF (hidden)
-+#define MODELID_INVISIBLE 7804
++#define MODELID_INVISIBLE 22452
 +//#define SPELL_TRANSPARENCY_100 37803 // Transparency 100% visible debuff //
 +#define ROOT_PERIOD 5000
 +

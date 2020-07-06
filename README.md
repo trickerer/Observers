@@ -1,10 +1,10 @@
 ### This mod was last updated:
-### last version: 14 May 2020, TrinityCore revision: [e2434e4f47](https://github.com/TrinityCore/TrinityCore/commit/e2434e4f47)
+### last version: 25 Jun 2020, TrinityCore revision: [3227ed94bc](https://github.com/TrinityCore/TrinityCore/commit/3227ed94bc)
 ### 2013 version: 12 Dec 2013. TrinityCore revision: [385e2dba37](https://github.com/TrinityCore/TrinityCore/commit/385e2dba37)
 
 # [ Observers Manual ]
 >Compiled by: Trickerer (onlysuffering @ Gmail dot Com)  
->Version 0.2 - 18 May 2020  
+>Version 0.3 - 06 Jul 2020  
 
 ---------------------------------------
 ### Contents
@@ -44,16 +44,13 @@ KEY:
  |  (pipe character) indicates parameter options (i.e. this|that  = this OR that)  
  -- (two dashes) indicates information follows about the command  
 ```
-* **`.observe <NAME>`** -- (Player command) start watching named player. You need an approval from that player (see below)  
+* **`.observe <NAME>`** -- (Player command) start watching named player. You need an approval from that player (see below). If no NAME is provided will cancel your current observation  
     - NAME = player's name, case-insensitive  
     **Example Usage:**  
         - `.observe trickerer` (start watching player named 'trickerer')  
-        - `.obs trickerer`  
-* **`.deobserve`** -- (Player command) stop watching and return camera to your location  
-    - (No arguments)  
-    **Example Usage:**  
-        - `.deobserve`  
-        - `.deob`  
+        - `.obs trickerer` (same as above)  
+        - `.observe` (get help or cancel observation)  
+        - `.obs` (same as above)  
 * **`.observers`** -- (Player command) by itself will list all syntax available  
     - **`reloadconfig`** -- (GM command) reloads Observers config settings  
         - (No arguments)  
@@ -117,6 +114,8 @@ If you need to uninstall the mod you'll have to remove `characters_observers` ta
 ---------------------------------------
 ## Guide Changelog
 
+- **Version 0.3** (_06 Jul 2020_)
+    - Commands info updated
 - **Version 0.2** (_18 May 2020_)
     - Add extra info on conditions
     - Add info on 2013 version

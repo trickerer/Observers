@@ -1,33 +1,32 @@
-From 670eeef7aac442c442192cd52bc8351b9248a7bf Mon Sep 17 00:00:00 2001
+From 885ac9443389743d67d8947e383d693596b88291 Mon Sep 17 00:00:00 2001
 From: trickerer <onlysuffering@gmail.com>
-Date: Mon, 18 May 2020 13:26:57 +0700
+Date: Mon, 6 Jul 2020 12:48:20 +0700
 Subject: [PATCH] Observers
 
 ---
- sql/custom/Observers/characters_observers.sql      |   8 +
- src/server/game/Combat/CombatManager.cpp           |   5 +
- src/server/game/DungeonFinding/LFGMgr.cpp          |   4 +
- src/server/game/Entities/Object/Object.cpp         |  22 +
- src/server/game/Entities/Player/Player.cpp         | 112 +++
- src/server/game/Entities/Player/Player.h           |  18 +
- src/server/game/Entities/Unit/Unit.cpp             |  48 ++
- src/server/game/Handlers/BattleGroundHandler.cpp   |  10 +
- src/server/game/Handlers/ChatHandler.cpp           |  36 +
- src/server/game/Handlers/GroupHandler.cpp          |   8 +
- src/server/game/Handlers/TaxiHandler.cpp           |  16 +
- src/server/game/Handlers/TradeHandler.cpp          |  20 +
- src/server/game/Maps/Map.cpp                       |  13 +
- src/server/game/Maps/MapInstanced.cpp              |  14 +
- src/server/game/Maps/MapManager.cpp                |   5 +
- src/server/game/Observers/ObserversCS.cpp          | 810 +++++++++++++++++++
- src/server/game/Observers/ObserversMgr.cpp         | 864 +++++++++++++++++++++
- src/server/game/Observers/ObserversMgr.h           | 139 ++++
- src/server/game/Scripting/ScriptMgr.cpp            |   6 +
- src/server/game/Spells/Auras/SpellAuras.cpp        |   5 +
- src/server/game/Spells/Spell.cpp                   |   5 +
- src/server/scripts/Custom/custom_script_loader.cpp |   6 +
- src/server/worldserver/worldserver.conf.dist       |  57 ++
- 23 files changed, 2231 insertions(+)
+ sql/custom/Observers/characters_observers.sql    |   8 +
+ src/server/game/Combat/CombatManager.cpp         |   5 +
+ src/server/game/DungeonFinding/LFGMgr.cpp        |   4 +
+ src/server/game/Entities/Object/Object.cpp       |  22 +
+ src/server/game/Entities/Player/Player.cpp       | 116 ++-
+ src/server/game/Entities/Player/Player.h         |  18 +
+ src/server/game/Entities/Unit/Unit.cpp           |  48 ++
+ src/server/game/Handlers/BattleGroundHandler.cpp |  10 +
+ src/server/game/Handlers/ChatHandler.cpp         |  36 +
+ src/server/game/Handlers/GroupHandler.cpp        |   8 +
+ src/server/game/Handlers/TaxiHandler.cpp         |  16 +
+ src/server/game/Handlers/TradeHandler.cpp        |  20 +
+ src/server/game/Maps/Map.cpp                     |  13 +-
+ src/server/game/Maps/MapInstanced.cpp            |  14 +
+ src/server/game/Maps/MapManager.cpp              |   5 +
+ src/server/game/Observers/ObserversCS.cpp        | 820 +++++++++++++++++++++
+ src/server/game/Observers/ObserversMgr.cpp       | 864 +++++++++++++++++++++++
+ src/server/game/Observers/ObserversMgr.h         | 139 ++++
+ src/server/game/Scripting/ScriptMgr.cpp          |   6 +
+ src/server/game/Spells/Auras/SpellAuras.cpp      |   5 +
+ src/server/game/Spells/Spell.cpp                 |   5 +
+ src/server/worldserver/worldserver.conf.dist     |  57 ++
+ 22 files changed, 2232 insertions(+), 7 deletions(-)
  create mode 100644 sql/custom/Observers/characters_observers.sql
  create mode 100644 src/server/game/Observers/ObserversCS.cpp
  create mode 100644 src/server/game/Observers/ObserversMgr.cpp
@@ -64,10 +63,10 @@ index 02dff68..a7a5afd 100644
          return false;
      Player const* playerA = a->GetCharmerOrOwnerPlayerOrPlayerItself();
 diff --git a/src/server/game/DungeonFinding/LFGMgr.cpp b/src/server/game/DungeonFinding/LFGMgr.cpp
-index 56c9fd4..69ccbf6 100644
+index b388219..d174734 100644
 --- a/src/server/game/DungeonFinding/LFGMgr.cpp
 +++ b/src/server/game/DungeonFinding/LFGMgr.cpp
-@@ -425,6 +425,10 @@ void LFGMgr::JoinLfg(Player* player, uint8 roles, LfgDungeonSet& dungeons, const
+@@ -432,6 +432,10 @@ void LFGMgr::JoinLfg(Player* player, uint8 roles, LfgDungeonSet& dungeons, const
      // Check player or group member restrictions
      if (!player->GetSession()->HasPermission(rbac::RBAC_PERM_JOIN_DUNGEON_FINDER))
          joinData.result = LFG_JOIN_NOT_MEET_REQS;
@@ -79,7 +78,7 @@ index 56c9fd4..69ccbf6 100644
          joinData.result = LFG_JOIN_USING_BG_SYSTEM;
      else if (player->HasAura(LFG_SPELL_DUNGEON_DESERTER))
 diff --git a/src/server/game/Entities/Object/Object.cpp b/src/server/game/Entities/Object/Object.cpp
-index c6597a2..fedfd68 100644
+index 44fdec8..363f6e0 100644
 --- a/src/server/game/Entities/Object/Object.cpp
 +++ b/src/server/game/Entities/Object/Object.cpp
 @@ -49,6 +49,10 @@
@@ -93,7 +92,7 @@ index c6597a2..fedfd68 100644
  constexpr float VisibilityDistances[AsUnderlyingType(VisibilityDistanceType::Max)] =
  {
      DEFAULT_VISIBILITY_DISTANCE,
-@@ -1531,6 +1535,11 @@ float WorldObject::GetSightRange(WorldObject const* target) const
+@@ -1542,6 +1546,11 @@ float WorldObject::GetSightRange(WorldObject const* target) const
  
  bool WorldObject::CanSeeOrDetect(WorldObject const* obj, bool ignoreStealth, bool distanceCheck, bool checkAlert) const
  {
@@ -105,7 +104,7 @@ index c6597a2..fedfd68 100644
      if (this == obj)
          return true;
  
-@@ -2573,6 +2582,12 @@ SpellMissInfo WorldObject::SpellHitResult(Unit* victim, SpellInfo const* spellIn
+@@ -2584,6 +2593,12 @@ SpellMissInfo WorldObject::SpellHitResult(Unit* victim, SpellInfo const* spellIn
  
  void WorldObject::SendSpellMiss(Unit* target, uint32 spellID, SpellMissInfo missInfo)
  {
@@ -118,7 +117,7 @@ index c6597a2..fedfd68 100644
      WorldPacket data(SMSG_SPELLLOGMISS, (4 + 8 + 1 + 4 + 8 + 1));
      data << uint32(spellID);
      data << uint64(GetGUID());
-@@ -2830,6 +2845,13 @@ bool WorldObject::IsValidAttackTarget(WorldObject const* target, SpellInfo const
+@@ -2841,6 +2856,13 @@ bool WorldObject::IsValidAttackTarget(WorldObject const* target, SpellInfo const
  {
      ASSERT(target);
  
@@ -133,10 +132,10 @@ index c6597a2..fedfd68 100644
      bool isPositiveSpell = bySpell && bySpell->IsPositive();
  
 diff --git a/src/server/game/Entities/Player/Player.cpp b/src/server/game/Entities/Player/Player.cpp
-index 595614c..a377ac5 100644
+index b7064c6..bdc4d08 100644
 --- a/src/server/game/Entities/Player/Player.cpp
 +++ b/src/server/game/Entities/Player/Player.cpp
-@@ -102,6 +102,10 @@
+@@ -101,6 +101,10 @@
  #include "WorldSession.h"
  #include "WorldStatePackets.h"
  
@@ -147,7 +146,7 @@ index 595614c..a377ac5 100644
  #define ZONE_UPDATE_INTERVAL (1*IN_MILLISECONDS)
  
  #define PLAYER_SKILL_INDEX(x)       (PLAYER_SKILL_INFO_1_1 + ((x)*3))
-@@ -409,6 +413,10 @@ Player::Player(WorldSession* session): Unit(true)
+@@ -408,6 +412,10 @@ Player::Player(WorldSession* session): Unit(true)
      m_reputationMgr = new ReputationMgr(this);
  
      m_groupUpdateTimer.Reset(5000);
@@ -158,7 +157,7 @@ index 595614c..a377ac5 100644
  }
  
  Player::~Player()
-@@ -448,6 +456,11 @@ Player::~Player()
+@@ -447,6 +455,11 @@ Player::~Player()
      delete m_reputationMgr;
      delete _cinematicMgr;
  
@@ -170,7 +169,7 @@ index 595614c..a377ac5 100644
      sWorld->DecreasePlayerCount();
  }
  
-@@ -1358,6 +1371,10 @@ void Player::Update(uint32 p_time)
+@@ -1356,6 +1369,10 @@ void Player::Update(uint32 p_time)
      if (IsHasDelayedTeleport() && IsAlive())
          TeleportTo(m_teleport_dest, m_teleport_options);
  
@@ -181,27 +180,27 @@ index 595614c..a377ac5 100644
  }
  
  void Player::setDeathState(DeathState s)
-@@ -1633,6 +1650,9 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
+@@ -1633,7 +1650,8 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
  
-     MapEntry const* mEntry = sMapStore.LookupEntry(mapid);
- 
-+    // Observers: skip this condition
-+    if (!IsObserver())
-+    // End Oberservers
      // don't let enter battlegrounds without assigned battleground id (for example through areatrigger)...
      // don't let gm level > 1 either
-     if (!InBattleground() && mEntry->IsBattlegroundOrArena())
-@@ -1722,6 +1742,9 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
+-    if (!InBattleground() && mEntry->IsBattlegroundOrArena())
++    // Observers: skip this condition
++    if (!InBattleground() && mEntry->IsBattlegroundOrArena() && !IsObserver())
+         return false;
+ 
+     // client without expansion support
+@@ -1720,7 +1738,8 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
      }
      else
      {
+-        if (GetClass() == CLASS_DEATH_KNIGHT && GetMapId() == 609 && !IsGameMaster() && !HasSpell(50977))
 +        // Observers: skip check
-+        if (!IsObserver())
-+        // End Observers
-         if (GetClass() == CLASS_DEATH_KNIGHT && GetMapId() == 609 && !IsGameMaster() && !HasSpell(50977))
++        if (GetClass() == CLASS_DEATH_KNIGHT && GetMapId() == 609 && !IsGameMaster() && !HasSpell(50977) && !IsObserver())
              return false;
  
-@@ -1734,6 +1757,11 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
+         // far teleport to another map
+@@ -1732,6 +1751,11 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
          if (sMapMgr->PlayerCannotEnter(mapid, this, false))
              return false;
  
@@ -213,7 +212,7 @@ index 595614c..a377ac5 100644
          //I think this always returns true. Correct me if I am wrong.
          // If the map is not created, assume it is possible to enter it.
          // It will be created in the WorldPortAck.
-@@ -1901,6 +1929,13 @@ void Player::ProcessDelayedOperations()
+@@ -1899,6 +1923,13 @@ void Player::ProcessDelayedOperations()
      m_DelayedOperations = 0;
  }
  
@@ -227,17 +226,20 @@ index 595614c..a377ac5 100644
  void Player::AddToWorld()
  {
      ///- Do not add/remove the player from the object storage
-@@ -1950,6 +1985,9 @@ void Player::RemoveFromWorld()
+@@ -1948,8 +1979,10 @@ void Player::RemoveFromWorld()
      {
          if (WorldObject* viewpoint = GetViewpoint())
          {
+-            TC_LOG_ERROR("entities.player", "Player::RemoveFromWorld: Player '%s' (%s) has viewpoint (Entry:%u, Type: %u) when removed from world",
+-                GetName().c_str(), GetGUID().ToString().c_str(), viewpoint->GetEntry(), viewpoint->GetTypeId());
 +            // Observers: check if logging out (normal)
 +            if (!(IsObserver() && GetSession()->isLogingOut()))
-+            // End Observers
-             TC_LOG_ERROR("entities.player", "Player::RemoveFromWorld: Player '%s' (%s) has viewpoint (Entry:%u, Type: %u) when removed from world",
-                 GetName().c_str(), GetGUID().ToString().c_str(), viewpoint->GetEntry(), viewpoint->GetTypeId());
++                TC_LOG_ERROR("entities.player", "Player::RemoveFromWorld: Player '%s' (%s) has viewpoint (Entry:%u, Type: %u) when removed from world",
++                    GetName().c_str(), GetGUID().ToString().c_str(), viewpoint->GetEntry(), viewpoint->GetTypeId());
              SetViewpoint(viewpoint, false);
-@@ -4410,6 +4448,10 @@ void Player::DeleteFromDB(ObjectGuid playerguid, uint32 accountId, bool updateRe
+         }
+     }
+@@ -4408,6 +4441,10 @@ void Player::DeleteFromDB(ObjectGuid playerguid, uint32 accountId, bool updateRe
              stmt->setUInt32(0, guid);
              trans->Append(stmt);
  
@@ -248,7 +250,7 @@ index 595614c..a377ac5 100644
              Corpse::DeleteFromDB(playerguid, trans);
              break;
          }
-@@ -6415,6 +6457,11 @@ void Player::CheckAreaExploreAndOutdoor()
+@@ -6413,6 +6450,11 @@ void Player::CheckAreaExploreAndOutdoor()
      if (IsInFlight())
          return;
  
@@ -260,7 +262,7 @@ index 595614c..a377ac5 100644
      if (sWorld->getBoolConfig(CONFIG_VMAP_INDOOR_CHECK) && !IsOutdoors())
          RemoveAurasWithAttribute(SPELL_ATTR0_OUTDOORS_ONLY);
  
-@@ -7000,6 +7047,11 @@ uint32 Player::GetZoneIdFromDB(ObjectGuid guid)
+@@ -6998,6 +7040,11 @@ uint32 Player::GetZoneIdFromDB(ObjectGuid guid)
  
  void Player::UpdateArea(uint32 newArea)
  {
@@ -272,7 +274,7 @@ index 595614c..a377ac5 100644
      // FFA_PVP flags are area and not zone id dependent
      // so apply them accordingly
      m_areaUpdateId = newArea;
-@@ -7039,6 +7091,11 @@ void Player::UpdateZone(uint32 newZone, uint32 newArea)
+@@ -7037,6 +7084,11 @@ void Player::UpdateZone(uint32 newZone, uint32 newArea)
      if (!IsInWorld())
          return;
  
@@ -284,7 +286,7 @@ index 595614c..a377ac5 100644
      uint32 const oldZone = m_zoneUpdateId;
      m_zoneUpdateId = newZone;
      m_zoneUpdateTimer = ZONE_UPDATE_INTERVAL;
-@@ -10543,6 +10600,11 @@ InventoryResult Player::CanStoreItem_InInventorySlots(uint8 slot_begin, uint8 sl
+@@ -10541,6 +10593,11 @@ InventoryResult Player::CanStoreItem_InInventorySlots(uint8 slot_begin, uint8 sl
  
  InventoryResult Player::CanStoreItem(uint8 bag, uint8 slot, ItemPosCountVec &dest, uint32 entry, uint32 count, Item* pItem, bool swap, uint32* no_space_count) const
  {
@@ -296,7 +298,7 @@ index 595614c..a377ac5 100644
      TC_LOG_DEBUG("entities.player.items", "Player::CanStoreItem: Bag: %u, Slot: %u, Item: %u, Count: %u", bag, slot, entry, count);
  
      ItemTemplate const* pProto = sObjectMgr->GetItemTemplate(entry);
-@@ -14144,6 +14206,11 @@ void Player::SendNewItem(Item* item, uint32 count, bool received, bool created,
+@@ -14149,6 +14206,11 @@ void Player::SendNewItem(Item* item, uint32 count, bool received, bool created,
      data << uint32(count);                                  // count of items
      data << uint32(GetItemCount(item->GetEntry()));         // count of items in inventory
  
@@ -308,7 +310,7 @@ index 595614c..a377ac5 100644
      if (broadcast && GetGroup())
          GetGroup()->BroadcastPacket(&data, true);
      else
-@@ -18935,6 +19002,11 @@ void Player::UnbindInstance(BoundInstancesMap::iterator &itr, Difficulty difficu
+@@ -18938,6 +19000,11 @@ void Player::UnbindInstance(BoundInstancesMap::iterator &itr, Difficulty difficu
  
  InstancePlayerBind* Player::BindToInstance(InstanceSave* save, bool permanent, BindExtensionState extendState, bool load)
  {
@@ -320,7 +322,7 @@ index 595614c..a377ac5 100644
      if (save)
      {
          InstancePlayerBind& bind = m_boundInstances[save->GetDifficulty()][save->GetMapId()];
-@@ -19188,6 +19260,11 @@ bool Player::CheckInstanceValidity(bool /*isLogin*/)
+@@ -19191,6 +19258,11 @@ bool Player::CheckInstanceValidity(bool /*isLogin*/)
      if (IsGameMaster())
          return true;
  
@@ -332,10 +334,11 @@ index 595614c..a377ac5 100644
      // non-instances are always valid
      Map* map = FindMap();
      if (!map || !map->IsDungeon())
-@@ -19476,6 +19553,21 @@ void Player::SaveToDB(bool create /*=false*/)
+@@ -19487,7 +19559,20 @@ void Player::SaveToDB(CharacterDatabaseTransaction trans, bool create /* = false
          stmt->setUInt8(index++, GetRestState());
          stmt->setUInt32(index++, GetUInt32Value(PLAYER_FLAGS));
  
+-        if (!IsBeingTeleported())
 +        //Observers should save their orig position
 +        if (_observersMgr && _observersMgr->GetAcceptor())
 +        {
@@ -349,24 +352,24 @@ index 595614c..a377ac5 100644
 +            stmt->setFloat(index++, finiteAlways(origz));
 +            stmt->setFloat(index++, finiteAlways(origo));
 +        }
-+        else
-+        //End Observers
-         if (!IsBeingTeleported())
++        else if (!IsBeingTeleported())
          {
              stmt->setUInt16(index++, (uint16)GetMapId());
-@@ -19522,6 +19614,11 @@ void Player::SaveToDB(bool create /*=false*/)
+             stmt->setUInt32(index++, (uint32)GetInstanceId());
+@@ -19533,7 +19618,11 @@ void Player::SaveToDB(CharacterDatabaseTransaction trans, bool create /* = false
          stmt->setUInt16(index++, (uint16)m_ExtraFlags);
          stmt->setUInt8(index++,  m_stableSlots);
          stmt->setUInt16(index++, (uint16)m_atLoginFlags);
+-        stmt->setUInt16(index++, GetZoneId());
 +        //Observers: orig zone Id
 +        if (_observersMgr && _observersMgr->GetAcceptor())
 +            stmt->setUInt16(index++, (uint16)_observersMgr->GetOrigZoneId());
 +        else
-+        //End Observers
-         stmt->setUInt16(index++, GetZoneId());
++            stmt->setUInt16(index++, GetZoneId());
          stmt->setUInt32(index++, uint32(m_deathExpireTime));
  
-@@ -22320,6 +22417,11 @@ bool Player::HaveAtClient(Object const* u) const
+         ss.str("");
+@@ -22329,6 +22418,11 @@ bool Player::HaveAtClient(Object const* u) const
  
  bool Player::IsNeverVisible() const
  {
@@ -378,7 +381,7 @@ index 595614c..a377ac5 100644
      if (Unit::IsNeverVisible())
          return true;
  
-@@ -24275,6 +24377,11 @@ void Player::SetOriginalGroup(Group* group, int8 subgroup)
+@@ -24285,6 +24379,11 @@ void Player::SetOriginalGroup(Group* group, int8 subgroup)
  
  void Player::ProcessTerrainStatusUpdate(ZLiquidStatus status, Optional<LiquidData> const& liquidData)
  {
@@ -390,7 +393,7 @@ index 595614c..a377ac5 100644
      // process liquid auras using generic unit code
      Unit::ProcessTerrainStatusUpdate(status, liquidData);
  
-@@ -25498,6 +25605,11 @@ void Player::ResummonPetTemporaryUnSummonedIfAny()
+@@ -25508,6 +25607,11 @@ void Player::ResummonPetTemporaryUnSummonedIfAny()
  
  bool Player::IsPetNeedBeTemporaryUnsummoned() const
  {
@@ -403,7 +406,7 @@ index 595614c..a377ac5 100644
  }
  
 diff --git a/src/server/game/Entities/Player/Player.h b/src/server/game/Entities/Player/Player.h
-index 97835fb..f59ae96 100644
+index 9fc1281..c3e1d06 100644
 --- a/src/server/game/Entities/Player/Player.h
 +++ b/src/server/game/Entities/Player/Player.h
 @@ -79,6 +79,10 @@ enum ItemClass : uint8;
@@ -417,7 +420,7 @@ index 97835fb..f59ae96 100644
  typedef std::deque<Mail*> PlayerMails;
  
  #define PLAYER_MAX_SKILLS           127
-@@ -2173,6 +2177,16 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
+@@ -2174,6 +2178,16 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
  
          std::string GetDebugInfo() const override;
  
@@ -434,7 +437,7 @@ index 97835fb..f59ae96 100644
      protected:
          // Gamemaster whisper whitelist
          GuidList WhisperList;
-@@ -2429,6 +2443,10 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
+@@ -2430,6 +2444,10 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
          TimeTrackerSmall m_groupUpdateTimer;
  
      private:
@@ -446,7 +449,7 @@ index 97835fb..f59ae96 100644
          InventoryResult CanStoreItem_InSpecificSlot(uint8 bag, uint8 slot, ItemPosCountVec& dest, ItemTemplate const* pProto, uint32& count, bool swap, Item* pSrcItem) const;
          InventoryResult CanStoreItem_InBag(uint8 bag, ItemPosCountVec& dest, ItemTemplate const* pProto, uint32& count, bool merge, bool non_specialized, Item* pSrcItem, uint8 skip_bag, uint8 skip_slot) const;
 diff --git a/src/server/game/Entities/Unit/Unit.cpp b/src/server/game/Entities/Unit/Unit.cpp
-index 31ca50e..9a97237 100644
+index 84848f0..16638d5 100644
 --- a/src/server/game/Entities/Unit/Unit.cpp
 +++ b/src/server/game/Entities/Unit/Unit.cpp
 @@ -76,6 +76,10 @@
@@ -460,7 +463,7 @@ index 31ca50e..9a97237 100644
  float baseMoveSpeed[MAX_MOVE_TYPE] =
  {
      2.5f,                  // MOVE_WALK
-@@ -5115,6 +5119,12 @@ void Unit::RemoveAllGameObjects()
+@@ -5148,6 +5152,12 @@ void Unit::RemoveAllGameObjects()
  
  void Unit::SendSpellNonMeleeDamageLog(SpellNonMeleeDamage* log)
  {
@@ -473,7 +476,7 @@ index 31ca50e..9a97237 100644
      WorldPacket data(SMSG_SPELLNONMELEEDAMAGELOG, (16+4+4+4+1+4+4+1+1+4+4+1)); // we guess size
      data << log->target->GetPackGUID();
      data << log->attacker->GetPackGUID();
-@@ -5183,6 +5193,21 @@ void Unit::SendSpellNonMeleeDamageLog(Unit* target, uint32 spellID, uint32 damag
+@@ -5216,6 +5226,21 @@ void Unit::SendSpellNonMeleeDamageLog(Unit* target, uint32 spellID, uint32 damag
  
  void Unit::SendPeriodicAuraLog(SpellPeriodicAuraLogInfo* pInfo)
  {
@@ -495,7 +498,7 @@ index 31ca50e..9a97237 100644
      AuraEffect const* aura = pInfo->auraEff;
  
      WorldPacket data(SMSG_PERIODICAURALOG, 30);
-@@ -5239,6 +5264,12 @@ void Unit::SendSpellDamageResist(Unit* target, uint32 spellId)
+@@ -5272,6 +5297,12 @@ void Unit::SendSpellDamageResist(Unit* target, uint32 spellId)
  
  void Unit::SendSpellDamageImmune(Unit* target, uint32 spellId)
  {
@@ -508,7 +511,7 @@ index 31ca50e..9a97237 100644
      WorldPacket data(SMSG_SPELLORDAMAGE_IMMUNE, 8+8+4+1);
      data << uint64(GetGUID());
      data << uint64(target->GetGUID());
-@@ -5249,6 +5280,12 @@ void Unit::SendSpellDamageImmune(Unit* target, uint32 spellId)
+@@ -5282,6 +5313,12 @@ void Unit::SendSpellDamageImmune(Unit* target, uint32 spellId)
  
  void Unit::SendAttackStateUpdate(CalcDamageInfo* damageInfo)
  {
@@ -521,7 +524,7 @@ index 31ca50e..9a97237 100644
      uint32 count = 1;
      if (damageInfo->Damages[1].Damage || damageInfo->Damages[1].Absorb || damageInfo->Damages[1].Resist)
          ++count;
-@@ -6319,6 +6356,12 @@ void Unit::UnsummonAllTotems()
+@@ -6352,6 +6389,12 @@ void Unit::UnsummonAllTotems()
  
  void Unit::SendHealSpellLog(HealInfo& healInfo, bool critical /*= false*/)
  {
@@ -534,7 +537,7 @@ index 31ca50e..9a97237 100644
      // we guess size
      WorldPacket data(SMSG_SPELLHEALLOG, 8 + 8 + 4 + 4 + 4 + 4 + 1 + 1);
      data << healInfo.GetTarget()->GetPackGUID();
-@@ -10260,6 +10303,11 @@ bool Unit::IsPolymorphed() const
+@@ -10296,6 +10339,11 @@ bool Unit::IsPolymorphed() const
  
  void Unit::RecalculateObjectScale()
  {
@@ -734,20 +737,20 @@ index 22f3bdb..f11bfe0 100644
      {
          info.Status = TRADE_STATUS_TARGET_LOGOUT;
 diff --git a/src/server/game/Maps/Map.cpp b/src/server/game/Maps/Map.cpp
-index e75c09a..49d29d5 100644
+index ced799a..dc4ac21 100644
 --- a/src/server/game/Maps/Map.cpp
 +++ b/src/server/game/Maps/Map.cpp
-@@ -3548,6 +3548,9 @@ uint32 Map::GetPlayersCountExceptGMs() const
+@@ -3557,7 +3557,8 @@ uint32 Map::GetPlayersCountExceptGMs() const
  {
      uint32 count = 0;
      for (MapRefManager::const_iterator itr = m_mapRefManager.begin(); itr != m_mapRefManager.end(); ++itr)
+-        if (!itr->GetSource()->IsGameMaster())
 +        // Observers: don't count observers
-+        if (!itr->GetSource()->IsObserver())
-+        // End Observers
-         if (!itr->GetSource()->IsGameMaster())
++        if (!itr->GetSource()->IsGameMaster() && !itr->GetSource()->IsObserver())
              ++count;
      return count;
-@@ -3715,6 +3718,11 @@ Map::EnterState InstanceMap::CannotEnter(Player* player)
+ }
+@@ -3724,6 +3725,11 @@ Map::EnterState InstanceMap::CannotEnter(Player* player)
      if (player->IsGameMaster())
          return Map::CannotEnter(player);
  
@@ -759,7 +762,7 @@ index e75c09a..49d29d5 100644
      // cannot enter if the instance is full (player cap), GMs don't count
      uint32 maxPlayers = GetMaxPlayers();
      if (GetPlayersCountExceptGMs() >= maxPlayers)
-@@ -4194,6 +4202,11 @@ Map::EnterState BattlegroundMap::CannotEnter(Player* player)
+@@ -4203,6 +4209,11 @@ Map::EnterState BattlegroundMap::CannotEnter(Player* player)
          return CANNOT_ENTER_ALREADY_IN_MAP;
      }
  
@@ -821,10 +824,10 @@ index 81fe7e3..c5f0ab3 100644
          return Map::CANNOT_ENTER_UNINSTANCED_DUNGEON;
 diff --git a/src/server/game/Observers/ObserversCS.cpp b/src/server/game/Observers/ObserversCS.cpp
 new file mode 100644
-index 0000000..f74bf59
+index 0000000..e9bc749
 --- /dev/null
 +++ b/src/server/game/Observers/ObserversCS.cpp
-@@ -0,0 +1,810 @@
+@@ -0,0 +1,820 @@
 +#include "ObserversMgr.h"
 +#include "CharacterCache.h"
 +#include "Chat.h"
@@ -898,7 +901,7 @@ index 0000000..f74bf59
 +            { "forbid",     PLAYER_COMMANDS,                false, nullptr,             "", observersForbidCommandTable },
 +            { "kick",       PLAYER_COMMANDS,                false, nullptr,               "", observersKickCommandTable },
 +            { "list",       PLAYER_COMMANDS,                false, nullptr,               "", observersListCommandTable },
-+            { "debug",      GM_COMMANDS,                    false, nullptr,               "", observersDebugCommandTable },
++            //{ "debug",      GM_COMMANDS,                    false, nullptr,               "", observersDebugCommandTable },
 +            { "reloadcfg",  GM_COMMANDS,                    true,  &HandleObserversReloadCfgCommand,        "" },
 +        };
 +
@@ -906,7 +909,7 @@ index 0000000..f74bf59
 +        {
 +            { "observers",  PLAYER_COMMANDS,                false, nullptr,                   "", observersCommandTable },
 +            { "observe",    PLAYER_COMMANDS,                false, HandleObserveCommand,                    "" },
-+            { "deobserve",  PLAYER_COMMANDS,                false, HandleDeObserveCommand,                  "" },
++            //{ "deobserve",  PLAYER_COMMANDS,                false, HandleDeObserveCommand,                  "" },
 +        };
 +        return commandTable;
 +    }
@@ -918,7 +921,7 @@ index 0000000..f74bf59
 +        handler->PSendSysMessage("Curr set to %i", val);
 +        return true;
 +    }
-+    static bool HandleObserversDebugContinueCommand(ChatHandler* handler, const char* args)
++    static bool HandleObserversDebugContinueCommand(ChatHandler* handler, const char* /*args*/)
 +    {
 +        handler->GetSession()->GetPlayer()->SetDisplayId(uint32(currModel++));
 +        if (!(currModel % 100))
@@ -930,10 +933,23 @@ index 0000000..f74bf59
 +    {
 +        handler->SetSentErrorMessage(true);
 +
++        Player* observer = handler->GetSession()->GetPlayer();
++
 +        if (!*args)
 +        {
++            if (observer->IsObserver())
++            {
++                ObserversMgr* mgr = observer->GetObserversMgr(); //always exists if observer
++                Player* acceptor = mgr->GetAcceptor(); //always exists if observer
++                ObserversMgr* amgr = acceptor->GetObserversMgr();
++                ASSERT(amgr && amgr->GetObserver(observer->GetGUID().GetCounter()));
++                amgr->RemoveObserver(observer->GetGUID().GetCounter(), OBSERVER_REMOVE_SELF);
++                return true;
++            }
++
 +            handler->SendSysMessage("Syntax: .observe #name");
 +            handler->SendSysMessage("Enables observation of character #name");
++            handler->SendSysMessage("Type '.observe' again to cancel");
 +            return false;
 +        }
 +
@@ -941,8 +957,6 @@ index 0000000..f74bf59
 +
 +        if (!ObserversMgr::IsObserverModEnabled())
 +            return false; //silent
-+
-+        Player* observer = handler->GetSession()->GetPlayer();
 +
 +        if (!ObserversMgr::CanAddObserver(observer))
 +        {
@@ -1051,7 +1065,6 @@ index 0000000..f74bf59
 +                }
 +
 +                plLink += "Hplayer:"+observer->GetName()+"|h["+observer->GetName()+"]|h|r";
-+                uint8 loc = handler->GetSessionDbcLocale();
 +
 +                ch.PSendSysMessage("%s wishes to observe you, added to pending list...", plLink.c_str());
 +
@@ -1637,7 +1650,7 @@ index 0000000..f74bf59
 +}
 diff --git a/src/server/game/Observers/ObserversMgr.cpp b/src/server/game/Observers/ObserversMgr.cpp
 new file mode 100644
-index 0000000..bea18f1
+index 0000000..d4db677
 --- /dev/null
 +++ b/src/server/game/Observers/ObserversMgr.cpp
 @@ -0,0 +1,864 @@
@@ -1655,14 +1668,14 @@ index 0000000..bea18f1
 +
 +/*
 +Observers system by Trickerer <https://github.com/trickerer/Observers>
-+VERSION: 1.0.19b
++VERSION: 1.0.20b
 +*/
 +
 +//6908 invisible transparancy 0%, sound only
 +//7804 invisible transparancy 0% tiny no weapon bunny icon, sound
 +//22452 invisible no weapon
 +#define SPELL_ROOT_SELF 31366 // RAF (hidden)
-+#define MODELID_INVISIBLE 7804
++#define MODELID_INVISIBLE 22452
 +//#define SPELL_TRANSPARENCY_100 37803 // Transparency 100% visible debuff //
 +#define ROOT_PERIOD 5000
 +
@@ -2651,7 +2664,7 @@ index 0000000..c8728f9
 +
 +#endif
 diff --git a/src/server/game/Scripting/ScriptMgr.cpp b/src/server/game/Scripting/ScriptMgr.cpp
-index 97bb772..0cb6b21 100644
+index 972f9ce..d855791 100644
 --- a/src/server/game/Scripting/ScriptMgr.cpp
 +++ b/src/server/game/Scripting/ScriptMgr.cpp
 @@ -43,6 +43,8 @@
@@ -2663,7 +2676,7 @@ index 97bb772..0cb6b21 100644
  // Trait which indicates whether this script type
  // must be assigned in the database.
  template<typename>
-@@ -1034,6 +1036,10 @@ void ScriptMgr::Initialize()
+@@ -1043,6 +1045,10 @@ void ScriptMgr::Initialize()
      // LFGScripts
      lfg::AddSC_LFGScripts();
  
@@ -2675,10 +2688,10 @@ index 97bb772..0cb6b21 100644
      ASSERT(_script_loader_callback,
             "Script loader callback wasn't registered!");
 diff --git a/src/server/game/Spells/Auras/SpellAuras.cpp b/src/server/game/Spells/Auras/SpellAuras.cpp
-index 94dc12f..f50301b 100644
+index 6c61ade..12421fd 100644
 --- a/src/server/game/Spells/Auras/SpellAuras.cpp
 +++ b/src/server/game/Spells/Auras/SpellAuras.cpp
-@@ -2619,6 +2619,11 @@ void UnitAura::FillTargetMap(std::unordered_map<Unit*, uint8>& targets, Unit* ca
+@@ -2627,6 +2627,11 @@ void UnitAura::FillTargetMap(std::unordered_map<Unit*, uint8>& targets, Unit* ca
      if (!ref)
          ref = GetUnitOwner();
  
@@ -2691,10 +2704,10 @@ index 94dc12f..f50301b 100644
      // static applications go through spell system first, so we assume they meet conditions
      for (auto const& targetPair : _staticApplications)
 diff --git a/src/server/game/Spells/Spell.cpp b/src/server/game/Spells/Spell.cpp
-index 537a597..acd7a79 100644
+index 4c090b0..e0efe83 100644
 --- a/src/server/game/Spells/Spell.cpp
 +++ b/src/server/game/Spells/Spell.cpp
-@@ -5038,6 +5038,11 @@ void Spell::HandleEffects(Unit* pUnitTarget, Item* pItemTarget, GameObject* pGOT
+@@ -5010,6 +5010,11 @@ void Spell::HandleEffects(Unit* pUnitTarget, Item* pItemTarget, GameObject* pGOT
  
  SpellCastResult Spell::CheckCast(bool strict, uint32* param1 /*= nullptr*/, uint32* param2 /*= nullptr*/)
  {
@@ -2706,31 +2719,11 @@ index 537a597..acd7a79 100644
      // check death state
      if (m_caster->ToUnit() && !m_caster->ToUnit()->IsAlive() && !m_spellInfo->IsPassive() && !(m_spellInfo->HasAttribute(SPELL_ATTR0_CASTABLE_WHILE_DEAD) || (IsTriggered() && !m_triggeredByAuraSpell)))
          return SPELL_FAILED_CASTER_DEAD;
-diff --git a/src/server/scripts/Custom/custom_script_loader.cpp b/src/server/scripts/Custom/custom_script_loader.cpp
-index 1df319b..33dc1be 100644
---- a/src/server/scripts/Custom/custom_script_loader.cpp
-+++ b/src/server/scripts/Custom/custom_script_loader.cpp
-@@ -17,9 +17,15 @@
- 
- // This is where scripts' loading functions should be declared:
- 
-+// Observers
-+void AddSC_script_observers_commands();
-+// End Observers
- 
- // The name of this function should match:
- // void Add${NameOfDirectory}Scripts()
- void AddCustomScripts()
- {
-+    // Observers
-+    AddSC_script_observers_commands();
-+    // End Observers
- }
 diff --git a/src/server/worldserver/worldserver.conf.dist b/src/server/worldserver/worldserver.conf.dist
-index fa0ddf4..c7b790d 100644
+index 998f40c..d979e23 100644
 --- a/src/server/worldserver/worldserver.conf.dist
 +++ b/src/server/worldserver/worldserver.conf.dist
-@@ -4077,3 +4077,60 @@ Metric.OverallStatusInterval = 1
+@@ -4085,3 +4085,60 @@ Metric.OverallStatusInterval = 1
  
  #
  ###################################################################################################
